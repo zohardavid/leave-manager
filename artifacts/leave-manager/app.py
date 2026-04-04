@@ -241,30 +241,22 @@ def login_page():
     with col2:
         st.subheader("כניסה למערכת")
         name = st.text_input("שם מלא", placeholder="לדוגמה: ישראל ישראלי")
-        pkal = st.text_input("קוד פק\"ל", placeholder="לדוגמה: PKAL001", type="password")
+        role_options = ["מפקד", "קשר", "מטול", "קלע", "לוחם", "חובש", "איבו", "אבטה", "נגב", "מאג"]
+        selected_role = st.selectbox('פק"ל', role_options)
         if st.button("כניסה", use_container_width=True, type="primary"):
-            if pkal.upper() == COMMANDER["pkal"]:
+            if not name.strip():
+                st.error("אנא הזן שם מלא.")
+            elif selected_role == "מפקד":
                 st.session_state.logged_in = True
                 st.session_state.role = "commander"
-                st.session_state.soldier_name = COMMANDER["name"]
+                st.session_state.soldier_name = name.strip()
                 st.rerun()
             else:
-                match = None
-                for s in SOLDIERS:
-                    if s["pkal"].upper() == pkal.upper() and s["name"].lower() == name.lower():
-                        match = s
-                        break
-                if match:
-                    st.session_state.logged_in = True
-                    st.session_state.role = "soldier"
-                    st.session_state.soldier_name = match["name"]
-                    st.session_state.soldier_pkal = match["pkal"]
-                    st.rerun()
-                else:
-                    st.error("שם או קוד פק\"ל שגויים. אנא נסה שנית.")
-        st.markdown("---")
-        st.caption("**כניסת מפקד:** השתמש בקוד פק\"ל `COMMANDER` (כל שם)")
-        st.caption("**כניסת חייל:** השתמש בשמך המלא וקוד הפק\"ל שהוקצה לך (PKAL001–PKAL030)")
+                st.session_state.logged_in = True
+                st.session_state.role = "soldier"
+                st.session_state.soldier_name = name.strip()
+                st.session_state.soldier_pkal = selected_role
+                st.rerun()
 
 
 def soldier_dashboard():
