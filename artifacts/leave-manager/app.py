@@ -9,7 +9,18 @@ TOTAL_SOLDIERS = 30
 MAX_ON_LEAVE = 18
 MIN_ON_DUTY = 12
 
-DEPLOYMENT_END = date(2026, 12, 31)
+DEPLOYMENT_START = date(2026, 4, 26)
+DEPLOYMENT_END = date(2026, 6, 28)
+
+DAYS_HEB = {
+    "Sun": "ראשון",
+    "Mon": "שני",
+    "Tue": "שלישי",
+    "Wed": "רביעי",
+    "Thu": "חמישי",
+    "Fri": "שישי",
+    "Sat": "שבת",
+}
 
 SOLDIERS = [
     {"name": "SGT James Carter", "pkal": "PKAL001"},
@@ -90,6 +101,16 @@ def days_used_by_soldier(data, soldier_name):
     total = 0
     for r in data["requests"]:
         if r["soldier_name"] == soldier_name and r["status"] == "Approved":
+            rs = date.fromisoformat(r["start_date"])
+            re = date.fromisoformat(r["end_date"])
+            total += (re - rs).days + 1
+    return total
+
+
+def days_denied_by_soldier(data, soldier_name):
+    total = 0
+    for r in data["requests"]:
+        if r["soldier_name"] == soldier_name and r["status"] == "Denied":
             rs = date.fromisoformat(r["start_date"])
             re = date.fromisoformat(r["end_date"])
             total += (re - rs).days + 1
@@ -241,16 +262,22 @@ def login_page():
     with col2:
         st.subheader("כניסה למערכת")
         name = st.text_input("שם מלא", placeholder="לדוגמה: ישראל ישראלי")
-        role_options = ["מפקד", "קשר", "מטול", "קלע", "לוחם", "חובש", "איבו", "אבטה", "נגב", "מאג"]
+        role_options = ["מפקד מחלקה", "מפקד", "קשר", "מטול", "קלע", "לוחם", "חובש", "איבו", "אבטה", "נגב", "מאג"]
         selected_role = st.selectbox('פק"ל', role_options)
+        password = ""
+        if selected_role == "מפקד מחלקה":
+            password = st.text_input("סיסמה", type="password")
         if st.button("כניסה", use_container_width=True, type="primary"):
             if not name.strip():
                 st.error("אנא הזן שם מלא.")
-            elif selected_role == "מפקד":
-                st.session_state.logged_in = True
-                st.session_state.role = "commander"
-                st.session_state.soldier_name = name.strip()
-                st.rerun()
+            elif selected_role == "מפקד מחלקה":
+                if password == "1234":
+                    st.session_state.logged_in = True
+                    st.session_state.role = "commander"
+                    st.session_state.soldier_name = name.strip()
+                    st.rerun()
+                else:
+                    st.error("סיסמה שגויה. אנא נסה שנית.")
             else:
                 st.session_state.logged_in = True
                 st.session_state.role = "soldier"
@@ -270,7 +297,7 @@ def soldier_dashboard():
     with col1:
         st.metric("ימי חופשה שנוצלו", f"{days_used} ימים")
     with col2:
-        st.metric("ימים עד סיום הפריסה", f"{days_to_end} ימים")
+        st.metric("ימים לסיום התעסוקה", f"{days_to_end} ימים")
     with col3:
         my_requests = [r for r in data["requests"] if r["soldier_name"] == soldier_name]
         st.metric("סך בקשות שהוגשו", len(my_requests))
@@ -429,8 +456,8 @@ def commander_dashboard():
             on_duty = TOTAL_SOLDIERS - on_leave
             alert = on_leave > MAX_ON_LEAVE
             rows.append({
-                "תאריך": d.strftime("%Y-%m-%d"),
-                "יום": d.strftime("%a"),
+                "תאריך": d.strftime("%d/%m/%Y"),
+                "יום": DAYS_HEB.get(d.strftime("%a"), d.strftime("%a")),
                 "בחופשה": on_leave,
                 "בשירות": on_duty,
                 "סטטוס": "🔴 התראה" if alert else ("🟡 אזהרה" if on_leave >= 15 else "🟢 תקין"),
@@ -485,13 +512,13 @@ def commander_dashboard():
         st.subheader("ימי חופשה לפי חייל")
         soldier_data = []
         for s in SOLDIERS:
-            used = days_used_by_soldier(data, s["name"])
-            reqs = [r for r in all_requests if r["soldier_name"] == s["name"]]
+            approved_days = days_used_by_soldier(data, s["name"])
+            denied_days = days_denied_by_soldier(data, s["name"])
             soldier_data.append({
                 "שם": s["name"],
-                "פק\"ל": s["pkal"],
-                "ימי חופשה שנוצלו": used,
-                "מספר בקשות": len(reqs),
+                'פק"ל': s["pkal"],
+                "ימי חופשה שאושרו": approved_days,
+                "ימי חופשה שנדחו": denied_days,
             })
         soldier_df = pd.DataFrame(soldier_data)
         st.dataframe(soldier_df, use_container_width=True, hide_index=True)
@@ -515,8 +542,8 @@ def main():
             st.badge("חייל", color="green")
         st.markdown("---")
         days_to_end = (DEPLOYMENT_END - date.today()).days
-        st.metric("ימים לסיום הפריסה", days_to_end)
-        st.caption(f"סיום פריסה: {DEPLOYMENT_END.strftime('%d/%m/%Y')}")
+        st.metric("ימים לסיום התעסוקה", days_to_end)
+        st.caption(f"סיום תעסוקה: {DEPLOYMENT_END.strftime('%d/%m/%Y')}")
         st.markdown("---")
         if st.button("🚪 התנתקות", use_container_width=True):
             for key in list(st.session_state.keys()):
