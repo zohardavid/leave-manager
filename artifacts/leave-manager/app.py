@@ -115,6 +115,124 @@ def check_overlap_warning(data, soldier_name, start_d, end_d):
 
 st.set_page_config(page_title="מערכת ניהול חופשות יחידה", page_icon="🪖", layout="wide")
 
+RTL_CSS = """
+<style>
+    /* Global RTL */
+    html, body, [class*="css"] {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Main app area */
+    .main .block-container {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* All text elements */
+    h1, h2, h3, h4, h5, h6, p, span, div, label {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        direction: rtl;
+        text-align: right;
+    }
+    [data-testid="stSidebar"] * {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Input fields and text areas */
+    input, textarea {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Select boxes */
+    [data-testid="stSelectbox"] * {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Form labels */
+    [data-testid="stWidgetLabel"] {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Metric labels */
+    [data-testid="stMetricLabel"],
+    [data-testid="stMetricValue"],
+    [data-testid="stMetricDelta"] {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Tabs */
+    [data-testid="stTabs"] * {
+        direction: rtl;
+    }
+
+    /* Expander */
+    [data-testid="stExpander"] * {
+        direction: rtl;
+        text-align: right;
+    }
+    [data-testid="stExpanderToggleIcon"] {
+        float: left;
+    }
+
+    /* Alert / info / warning / success boxes */
+    [data-testid="stAlert"] {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Dataframe — flip header and cell alignment */
+    [data-testid="stDataFrame"] th,
+    [data-testid="stDataFrame"] td {
+        text-align: right !important;
+        direction: rtl;
+    }
+
+    /* Buttons */
+    [data-testid="stButton"] button {
+        direction: rtl;
+    }
+
+    /* Caption */
+    [data-testid="stCaptionContainer"] {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Markdown */
+    [data-testid="stMarkdownContainer"] {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Form submit button */
+    [data-testid="stFormSubmitButton"] button {
+        direction: rtl;
+    }
+
+    /* Number input */
+    [data-testid="stNumberInput"] input {
+        text-align: right;
+    }
+
+    /* Date input */
+    [data-testid="stDateInput"] input {
+        text-align: right;
+        direction: rtl;
+    }
+</style>
+"""
+
 
 def login_page():
     st.title("🪖 מערכת ניהול חופשות יחידה מילואים")
@@ -122,7 +240,7 @@ def login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.subheader("כניסה למערכת")
-        name = st.text_input("שם מלא", placeholder="לדוגמה: SGT James Carter")
+        name = st.text_input("שם מלא", placeholder="לדוגמה: ישראל ישראלי")
         pkal = st.text_input("קוד פק\"ל", placeholder="לדוגמה: PKAL001", type="password")
         if st.button("כניסה", use_container_width=True, type="primary"):
             if pkal.upper() == COMMANDER["pkal"]:
@@ -173,7 +291,7 @@ def soldier_dashboard():
         with st.form("leave_form"):
             start_date = st.date_input("תאריך התחלה", min_value=date.today())
             end_date = st.date_input("תאריך סיום", min_value=date.today())
-            reason = st.text_area("סיבת החופשה", placeholder="פרט את סיבת בקשת החופשה...")
+            reason = st.text_area("סיבת החופשה", placeholder="לדוגמה: אירוע משפחתי, טיפול רפואי, מנוחה...")
             submitted = st.form_submit_button("הגש בקשה", type="primary")
             if submitted:
                 if end_date < start_date:
@@ -388,6 +506,8 @@ def commander_dashboard():
 
 
 def main():
+    st.markdown(RTL_CSS, unsafe_allow_html=True)
+
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
 
