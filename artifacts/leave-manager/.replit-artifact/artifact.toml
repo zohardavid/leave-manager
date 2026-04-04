@@ -1,0 +1,13 @@
+kind = "web"
+previewPath = "/"
+title = "Leave Manager"
+version = "1.0.0"
+id = "leave-manager-streamlit"
+
+[[services]]
+localPort = 5000
+name = "Start application"
+paths = ["/"]
+
+[services.development]
+run = "streamlit run /home/runner/workspace/artifacts/leave-manager/app.py --server.port 5000"
