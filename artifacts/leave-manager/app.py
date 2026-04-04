@@ -10,7 +10,7 @@ MAX_ON_LEAVE = 18
 MIN_ON_DUTY = 12
 
 DEPLOYMENT_START = date(2026, 4, 26)
-DEPLOYMENT_END = date(2026, 6, 28)
+DEPLOYMENT_END = date(2026, 6, 25)
 
 DAYS_HEB = {
     "Sun": "ראשון",
