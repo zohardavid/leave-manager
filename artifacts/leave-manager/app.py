@@ -113,7 +113,7 @@ def check_overlap_warning(data, soldier_name, start_d, end_d):
     return overloaded
 
 
-st.set_page_config(page_title="מערכת ניהול חופשות יחידה", page_icon="🪖", layout="wide")
+st.set_page_config(page_title="מערכת ניהול בקשות יציאה", page_icon="🪖", layout="wide")
 
 RTL_CSS = """
 <style>
@@ -235,7 +235,7 @@ RTL_CSS = """
 
 
 def login_page():
-    st.title("🪖 מערכת ניהול חופשות יחידה מילואים")
+    st.markdown('<h1 style="text-align: center;">מערכת ניהול בקשות יציאה</h1>', unsafe_allow_html=True)
     st.markdown("---")
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
