@@ -487,11 +487,26 @@ def soldier_dashboard():
             else:
                 st.info("📌 לא נבחר סבב עדיין. עבור ללשונית 'בחירת סבב' כדי לבחור.")
         else:
-            st.markdown(f"**סבב מאושר: סבב {approved_round_letter}'** &nbsp; | &nbsp; 🛡️ = ביחידה &nbsp; 🏠 = בבית/יציאה")
+            st.markdown(f"**סבב מאושר: סבב {approved_round_letter}'** &nbsp; | &nbsp; 🛡️ביחידה &nbsp; 🏠בבית")
             st.markdown("---")
 
             calendar.setfirstweekday(calendar.SUNDAY)
             month_names = {4: "אפריל", 5: "מאי", 6: "יוני"}
+
+            def _classify(d):
+                """קובע את קטגוריית היום לצביעה – לפי סדר קדימות."""
+                # עדיפות 1: החלפת ימים מאושרת (יוזם או שותף)
+                for sw in data["swaps"]:
+                    if sw["status"] == "Approved" and (sw["requester"] == soldier_name or sw["partner"] == soldier_name):
+                        if date.fromisoformat(sw["start_date"]) <= d <= date.fromisoformat(sw["end_date"]):
+                            return "swap"
+                # עדיפות 2: בקשת יציאה מאושרת
+                for r in data["requests"]:
+                    if r["soldier_name"] == soldier_name and r["status"] == "Approved":
+                        if date.fromisoformat(r["start_date"]) <= d <= date.fromisoformat(r["end_date"]):
+                            return "leave"
+                # עדיפות 3+4: לפי הסבב המאושר
+                return day_type_by_round(d, approved_round_letter) or "base"
 
             for m_num in [4, 5, 6]:
                 st.markdown(f"#### {month_names[m_num]} 2026")
@@ -503,23 +518,25 @@ def soldier_dashboard():
                     cols = st.columns(7)
                     for i, day in enumerate(week):
                         if day == 0:
-                            cols[i].markdown("<div style='min-height:55px;'></div>", unsafe_allow_html=True)
+                            cols[i].markdown("<div style='min-height:62px;'></div>", unsafe_allow_html=True)
                             continue
                         curr_date = date(2026, m_num, day)
                         if not (DEPLOYMENT_START <= curr_date <= DEPLOYMENT_END):
-                            cols[i].markdown(f"<div style='background:#f0f2f6;padding:6px 3px;border-radius:6px;text-align:center;opacity:0.35;margin-bottom:3px;'><div style='font-size:14px;'>{day}</div></div>", unsafe_allow_html=True)
+                            cols[i].markdown(f"<div style='background:#f8f9fa;padding:6px 3px;border-radius:6px;text-align:center;opacity:0.3;margin-bottom:3px;border:1px solid #dee2e6;'><div style='font-size:13px;'>{day}</div></div>", unsafe_allow_html=True)
                             continue
-                        dtype = get_personal_day_type(data, soldier_name, curr_date)
-                        if dtype == "base":
-                            bg, icon, txt_color = "#d0e8ff", "🛡️", "#003a73"
-                        elif dtype in ("leave", "home"):
-                            bg, icon, txt_color = "#d4f8d4", "🏠", "#1a6b1a"
+                        cat = _classify(curr_date)
+                        if cat == "swap":
+                            bg, bd, label = "#d0ebff", "#a5d8ff", "החלפה 🏠"
+                        elif cat == "leave":
+                            bg, bd, label = "#fff3cd", "#ffe69c", "חופשה 🏠"
+                        elif cat == "home":
+                            bg, bd, label = "#d4edda", "#c3e6cb", "בבית 🏠"
                         else:
-                            bg, icon, txt_color = "#f0f2f6", "", "#666"
-                        cols[i].markdown(f"<div style='background:{bg};padding:6px 3px;border-radius:6px;text-align:center;border:1px solid #ccc;margin-bottom:3px;'><div style='font-weight:bold;font-size:14px;color:{txt_color};'>{day}</div><div style='font-size:14px;'>{icon}</div></div>", unsafe_allow_html=True)
+                            bg, bd, label = "#e2e3e5", "#ccc", "בבסיס 🛡️"
+                        cols[i].markdown(f"<div style='background:{bg};padding:6px 3px;border-radius:6px;text-align:center;border:1px solid {bd};margin-bottom:3px;'><div style='font-weight:bold;font-size:14px;'>{day}</div><div style='font-size:11px;margin-top:2px;'>{label}</div></div>", unsafe_allow_html=True)
 
             st.markdown("---")
-            st.caption("🛡️ ביחידה  |  🏠 בבית / יציאה מאושרת / החלפת ימים מאושרת")
+            st.markdown("<div style='font-size:13px;'>🟦 החלפת ימים מאושרת &nbsp;&nbsp; 🟨 יציאה מאושרת &nbsp;&nbsp; 🟩 בבית לפי סבב &nbsp;&nbsp; ◻️ בבסיס / יום משותף</div>", unsafe_allow_html=True)
 
 
 # ──────────────────────────────────────────────────────────
