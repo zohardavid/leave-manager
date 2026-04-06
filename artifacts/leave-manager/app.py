@@ -11,7 +11,11 @@ TOTAL_SOLDIERS   = 30
 MAX_ON_LEAVE     = 18
 MIN_ON_DUTY      = 12
 DEPLOYMENT_START = date(2026, 4, 26)
-DEPLOYMENT_END   = date(2026, 5, 26)
+DEPLOYMENT_END   = date(2026, 6, 26)
+
+# תחילת הרוטינה (מחזוריות 15 ימים): 30.04.2026
+ROUTINE_START    = date(2026, 4, 30)
+CYCLE_LENGTH     = 15  # יום 0=משותף, 1-6=א'בית/ב'בסיס, 7-14=א'בסיס/ב'בית
 
 DAYS_HEB = {
     "Sun": "ראשון", "Mon": "שני", "Tue": "שלישי",
@@ -153,50 +157,35 @@ def get_pending_round(data, soldier_name):
 
 def day_type_by_round(d, round_letter):
     """
-    לוגיקת 8-6-1: קובע אם יום d הוא בבסיס (base) או בבית (home) לפי הסבב.
+    לוגיקת מחזוריות 15 ימים החל מ-ROUTINE_START (30.04.2026).
 
-    ימים שכולם בבסיס (ללא קשר לסבב):
-      26.4 – 29.4  (גיוס + ימי פתיחה)
-      03.05        (יום משותף)
-      18.05        (יום משותף)
+    מבנה המחזור:
+      יום  0          →  יום משותף – כולם בבסיס 🛡️
+      ימים 1 – 6  (6) →  סבב א': בית 🏠  |  סבב ב': בסיס 🛡️
+      ימים 7 – 14 (8) →  סבב א': בסיס 🛡️ |  סבב ב': בית 🏠
 
-    סבב א':
-      30.4  – 02.05  →  בסיס
-      04.05 – 09.05  →  בית  (6 ימים)
-      10.05 – 17.05  →  בסיס (8 ימים)
-      19.05 – 24.05  →  בית  (6 ימים)
-      25.05 – 26.05  →  בסיס
-
-    סבב ב':
-      30.4  – 02.05  →  בית  (3 ימים – יישור קו)
-      04.05 – 11.05  →  בסיס (8 ימים)
-      12.05 – 17.05  →  בית  (6 ימים)
-      19.05 – 26.05  →  בסיס (8 ימים)
+    תקופת גיוס 26.4–29.4: כולם בבסיס (טרם תחילת הרוטינה).
     """
     if d < DEPLOYMENT_START or d > DEPLOYMENT_END:
         return None
 
-    # ימים שכולם בבסיס
-    SHARED_BASE = {
-        date(2026, 4, 26), date(2026, 4, 27), date(2026, 4, 28), date(2026, 4, 29),
-        date(2026, 5, 3),
-        date(2026, 5, 18),
-    }
-    if d in SHARED_BASE:
+    # 26–29 אפריל: כולם בבסיס (לפני תחילת הרוטינה)
+    if d < ROUTINE_START:
         return "base"
 
-    if round_letter == "א":
-        if date(2026, 4, 30) <= d <= date(2026, 5, 2):   return "base"
-        if date(2026, 5, 4)  <= d <= date(2026, 5, 9):   return "home"
-        if date(2026, 5, 10) <= d <= date(2026, 5, 17):  return "base"
-        if date(2026, 5, 19) <= d <= date(2026, 5, 24):  return "home"
-        return "base"  # 25.05 – 26.05
+    # חישוב מיקום ביום במחזור
+    cycle_day = (d - ROUTINE_START).days % CYCLE_LENGTH
 
-    else:  # ב
-        if date(2026, 4, 30) <= d <= date(2026, 5, 2):   return "home"
-        if date(2026, 5, 4)  <= d <= date(2026, 5, 11):  return "base"
-        if date(2026, 5, 12) <= d <= date(2026, 5, 17):  return "home"
-        return "base"  # 19.05 – 26.05
+    # יום 0: יום משותף – כולם בבסיס
+    if cycle_day == 0:
+        return "base"
+
+    # ימים 1–6
+    if 1 <= cycle_day <= 6:
+        return "home" if round_letter == "א" else "base"
+
+    # ימים 7–14
+    return "base" if round_letter == "א" else "home"
 
 
 def get_personal_day_type(data, soldier_name, d):
