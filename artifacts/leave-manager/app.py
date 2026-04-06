@@ -502,9 +502,9 @@ def soldier_dashboard():
             st.markdown("---")
 
             calendar.setfirstweekday(calendar.SUNDAY)
-            month_names = {4: "אפריל", 5: "מאי"}
+            month_names = {4: "אפריל", 5: "מאי", 6: "יוני"}
 
-            for m_num in [4, 5]:
+            for m_num in [4, 5, 6]:
                 st.markdown(f"#### {month_names[m_num]} 2026")
                 header_cols = st.columns(7)
                 for i, lbl in enumerate(["א'","ב'","ג'","ד'","ה'","ו'","שבת"]):
@@ -617,10 +617,10 @@ def commander_dashboard():
     with tab2:
         st.subheader('לוח סד"כ – תעסוקה מבצעית')
         day_counts = count_on_leave_per_day(data, DEPLOYMENT_START, DEPLOYMENT_END)
-        month_names = {4: "אפריל", 5: "מאי"}
+        month_names = {4: "אפריל", 5: "מאי", 6: "יוני"}
         calendar.setfirstweekday(calendar.SUNDAY)
 
-        for m_num in [4, 5]:
+        for m_num in [4, 5, 6]:
             st.markdown(f"#### {month_names[m_num]} 2026")
             header_cols = st.columns(7)
             for i, lbl in enumerate(["א'","ב'","ג'","ד'","ה'","ו'","שבת"]):
