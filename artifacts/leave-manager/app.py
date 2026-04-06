@@ -2,10 +2,8 @@ import streamlit as st
 import json
 import os
 import calendar
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 import pandas as pd
-import extra_streamlit_components as stx
-
 # ─── קבועים ───────────────────────────────────────────────
 DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "data.json")
 TOTAL_SOLDIERS = 30
@@ -18,9 +16,6 @@ DAYS_HEB = {
     "Sun": "ראשון", "Mon": "שני", "Tue": "שלישי",
     "Wed": "רביעי", "Thu": "חמישי", "Fri": "שישי", "Sat": "שבת",
 }
-
-# ─── Cookie Manager (חייב להיות ברמה הגלובלית) ────────────
-cookie_manager = stx.CookieManager()
 
 # ─── הגדרות עמוד ──────────────────────────────────────────
 st.set_page_config(
@@ -187,10 +182,7 @@ def login_page():
                     None,
                 )
                 if user and user.get("password") == login_pw:
-                    cookie_manager.set(
-                        "saved_username", user["name"],
-                        expires_at=datetime.now() + timedelta(days=30),
-                    )
+                    st.query_params["user"] = user["name"]
                     st.session_state.logged_in    = True
                     st.session_state.role         = "commander" if user["pkal"] == "מפקד מחלקה" else "soldier"
                     st.session_state.soldier_name = user["name"]
@@ -223,10 +215,7 @@ def login_page():
                     new_user = {"name": reg_name.strip(), "pkal": reg_role, "password": reg_pw}
                     data["soldiers"].append(new_user)
                     save_data(data)
-                    cookie_manager.set(
-                        "saved_username", new_user["name"],
-                        expires_at=datetime.now() + timedelta(days=30),
-                    )
+                    st.query_params["user"] = new_user["name"]
                     st.session_state.logged_in    = True
                     st.session_state.role         = "commander" if reg_role == "מפקד מחלקה" else "soldier"
                     st.session_state.soldier_name = new_user["name"]
@@ -490,9 +479,9 @@ def main():
     st.markdown(RTL_CSS, unsafe_allow_html=True)
     data = load_data()
 
-    # שחזור כניסה אוטומטית מהעוגייה (רק אם טרם קבענו מצב)
+    # שחזור כניסה אוטומטית מה-URL (רק אם טרם קבענו מצב)
     if "logged_in" not in st.session_state:
-        saved_user = cookie_manager.get(cookie="saved_username")
+        saved_user = st.query_params.get("user")
         if saved_user:
             user = next((s for s in data.get("soldiers", []) if s["name"] == saved_user), None)
             if user:
@@ -524,7 +513,7 @@ def main():
         st.markdown("---")
 
         if st.button("🚪 התנתקות", use_container_width=True):
-            cookie_manager.delete("saved_username")
+            st.query_params.clear()
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
