@@ -11,7 +11,7 @@ TOTAL_SOLDIERS   = 30
 MAX_ON_LEAVE     = 18
 MIN_ON_DUTY      = 12
 DEPLOYMENT_START = date(2026, 4, 26)
-DEPLOYMENT_END   = date(2026, 6, 25)
+DEPLOYMENT_END   = date(2026, 5, 26)
 
 DAYS_HEB = {
     "Sun": "ראשון", "Mon": "שני", "Tue": "שלישי",
@@ -152,18 +152,51 @@ def get_pending_round(data, soldier_name):
 
 
 def day_type_by_round(d, round_letter):
-    """קובע אם יום d הוא ביסיס (base) או בבית (home) לפי הסבב.
-       סבב א': שבוע זוגי = בסיס, שבוע אי-זוגי = בית
-       סבב ב': שבוע זוגי = בית, שבוע אי-זוגי = בסיס
+    """
+    לוגיקת 8-6-1: קובע אם יום d הוא בבסיס (base) או בבית (home) לפי הסבב.
+
+    ימים שכולם בבסיס (ללא קשר לסבב):
+      26.4 – 29.4  (גיוס + ימי פתיחה)
+      03.05        (יום משותף)
+      18.05        (יום משותף)
+
+    סבב א':
+      30.4  – 02.05  →  בסיס
+      04.05 – 09.05  →  בית  (6 ימים)
+      10.05 – 17.05  →  בסיס (8 ימים)
+      19.05 – 24.05  →  בית  (6 ימים)
+      25.05 – 26.05  →  בסיס
+
+    סבב ב':
+      30.4  – 02.05  →  בית  (3 ימים – יישור קו)
+      04.05 – 11.05  →  בסיס (8 ימים)
+      12.05 – 17.05  →  בית  (6 ימים)
+      19.05 – 26.05  →  בסיס (8 ימים)
     """
     if d < DEPLOYMENT_START or d > DEPLOYMENT_END:
         return None
-    week_num = (d - DEPLOYMENT_START).days // 7
-    is_even_week = (week_num % 2 == 0)
+
+    # ימים שכולם בבסיס
+    SHARED_BASE = {
+        date(2026, 4, 26), date(2026, 4, 27), date(2026, 4, 28), date(2026, 4, 29),
+        date(2026, 5, 3),
+        date(2026, 5, 18),
+    }
+    if d in SHARED_BASE:
+        return "base"
+
     if round_letter == "א":
-        return "base" if is_even_week else "home"
+        if date(2026, 4, 30) <= d <= date(2026, 5, 2):   return "base"
+        if date(2026, 5, 4)  <= d <= date(2026, 5, 9):   return "home"
+        if date(2026, 5, 10) <= d <= date(2026, 5, 17):  return "base"
+        if date(2026, 5, 19) <= d <= date(2026, 5, 24):  return "home"
+        return "base"  # 25.05 – 26.05
+
     else:  # ב
-        return "home" if is_even_week else "base"
+        if date(2026, 4, 30) <= d <= date(2026, 5, 2):   return "home"
+        if date(2026, 5, 4)  <= d <= date(2026, 5, 11):  return "base"
+        if date(2026, 5, 12) <= d <= date(2026, 5, 17):  return "home"
+        return "base"  # 19.05 – 26.05
 
 
 def get_personal_day_type(data, soldier_name, d):
@@ -286,7 +319,7 @@ def soldier_dashboard():
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("ימי יציאה שנוצלו", f"{days_used} ימים")
+        st.metric("ימי בית מבקשות יציאה שאושרו", f"{days_used} ימים")
     with col2:
         st.metric(label, f"{val} ימים")
     with col3:
@@ -469,9 +502,9 @@ def soldier_dashboard():
             st.markdown("---")
 
             calendar.setfirstweekday(calendar.SUNDAY)
-            month_names = {4: "אפריל", 5: "מאי", 6: "יוני"}
+            month_names = {4: "אפריל", 5: "מאי"}
 
-            for m_num in [4, 5, 6]:
+            for m_num in [4, 5]:
                 st.markdown(f"#### {month_names[m_num]} 2026")
                 header_cols = st.columns(7)
                 for i, lbl in enumerate(["א'","ב'","ג'","ד'","ה'","ו'","שבת"]):
@@ -584,10 +617,10 @@ def commander_dashboard():
     with tab2:
         st.subheader('לוח סד"כ – תעסוקה מבצעית')
         day_counts = count_on_leave_per_day(data, DEPLOYMENT_START, DEPLOYMENT_END)
-        month_names = {4: "אפריל", 5: "מאי", 6: "יוני"}
+        month_names = {4: "אפריל", 5: "מאי"}
         calendar.setfirstweekday(calendar.SUNDAY)
 
-        for m_num in [4, 5, 6]:
+        for m_num in [4, 5]:
             st.markdown(f"#### {month_names[m_num]} 2026")
             header_cols = st.columns(7)
             for i, lbl in enumerate(["א'","ב'","ג'","ד'","ה'","ו'","שבת"]):

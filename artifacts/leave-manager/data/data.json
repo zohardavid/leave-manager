@@ -2,49 +2,68 @@
   "requests": [
     {
       "id": 1,
-      "soldier_name": "\u05d4\u05d5\u05d2\u05d5 \u05d3\u05d5\u05d3",
+      "soldier_name": "הוגו דוד",
       "start_date": "2026-04-26",
       "end_date": "2026-04-30",
-      "reason": "\u05d8\u05d9\u05e4\u05d5\u05dc \u05e8\u05e4\u05d5\u05d0\u05d9",
+      "reason": "טיפול רפואי",
       "status": "Approved",
       "submitted_at": "2026-04-04",
       "commander_note": ""
     },
     {
       "id": 2,
-      "soldier_name": "\u05d0\u05d1\u05d9\u05d2\u05d9\u05dc \u05d3\u05d5\u05d3",
+      "soldier_name": "אביגיל דוד",
       "start_date": "2026-06-11",
       "end_date": "2026-06-14",
-      "reason": "\u05d7\u05d0\u05df \u05d1\u05d0\u05e8\u05d5\u05ea\u05d9\u05d9\u05dd",
+      "reason": "חאן בארותיים",
       "status": "Approved",
       "submitted_at": "2026-04-04",
       "commander_note": ""
     },
     {
       "id": 3,
-      "soldier_name": "\u05d0\u05d1\u05d9\u05e9\u05d9 \u05d0\u05d1\u05d9\u05d3\u05d5\u05e8",
+      "soldier_name": "אבישי אבידור",
       "start_date": "2026-04-29",
       "end_date": "2026-04-30",
-      "reason": "\u05d3\u05d9\u05d5\u05d5\u05d0\u05df",
+      "reason": "דיוואן",
       "status": "Approved",
       "submitted_at": "2026-04-04"
+    },
+    {
+      "id": 4,
+      "soldier_name": "אוריה קיטאי",
+      "start_date": "2026-04-26",
+      "end_date": "2026-04-29",
+      "reason": "הגברה",
+      "status": "Approved",
+      "submitted_at": "2026-04-06",
+      "commander_note": ""
     }
   ],
   "soldiers": [
     {
-      "name": "\u05d6\u05d4\u05e8 \u05d3\u05d5\u05d3",
-      "pkal": "\u05de\u05e4\u05e7\u05d3 \u05de\u05d7\u05dc\u05e7\u05d4",
+      "name": "זהר דוד",
+      "pkal": "מפקד מחלקה",
       "password": "1234"
     },
     {
-      "name": "\u05d0\u05d1\u05d9\u05e9\u05d9 \u05d0\u05d1\u05d9\u05d3\u05d5\u05e8",
-      "pkal": "\u05de\u05d0\u05d2",
+      "name": "אבישי אבידור",
+      "pkal": "מאג",
       "password": "321"
     },
     {
-      "name": "\u05d0\u05d5\u05e8\u05d9\u05d4 \u05e7\u05d9\u05d8\u05d0\u05d9",
-      "pkal": "\u05e7\u05e9\u05e8",
+      "name": "אוריה קיטאי",
+      "pkal": "קשר",
       "password": "111"
     }
-  ]
+  ],
+  "rounds": [
+    {
+      "soldier_name": "אוריה קיטאי",
+      "round": "א",
+      "status": "Approved",
+      "submitted_at": "2026-04-06"
+    }
+  ],
+  "swaps": []
 }
