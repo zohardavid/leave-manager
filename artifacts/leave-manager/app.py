@@ -747,5 +747,9 @@ def main():
         soldier_dashboard()
 
 
-if __name__ == "__main__":
+try:
     main()
+except Exception as e:
+    import traceback
+    st.error(f"שגיאה: {e}")
+    st.code(traceback.format_exc())
