@@ -1,0 +1,69 @@
+{
+  "requests": [
+    {
+      "id": 1,
+      "soldier_name": "הוגו דוד",
+      "start_date": "2026-04-26",
+      "end_date": "2026-04-30",
+      "reason": "טיפול רפואי",
+      "status": "Approved",
+      "submitted_at": "2026-04-04",
+      "commander_note": ""
+    },
+    {
+      "id": 2,
+      "soldier_name": "אביגיל דוד",
+      "start_date": "2026-06-11",
+      "end_date": "2026-06-14",
+      "reason": "חאן בארותיים",
+      "status": "Approved",
+      "submitted_at": "2026-04-04",
+      "commander_note": ""
+    },
+    {
+      "id": 3,
+      "soldier_name": "אבישי אבידור",
+      "start_date": "2026-04-29",
+      "end_date": "2026-04-30",
+      "reason": "דיוואן",
+      "status": "Approved",
+      "submitted_at": "2026-04-04"
+    },
+    {
+      "id": 4,
+      "soldier_name": "אוריה קיטאי",
+      "start_date": "2026-04-26",
+      "end_date": "2026-04-29",
+      "reason": "הגברה",
+      "status": "Approved",
+      "submitted_at": "2026-04-06",
+      "commander_note": ""
+    }
+  ],
+  "soldiers": [
+    {
+      "name": "זהר דוד",
+      "pkal": "מפקד מחלקה",
+      "password": "1234"
+    },
+    {
+      "name": "אבישי אבידור",
+      "pkal": "מאג",
+      "password": "321"
+    },
+    {
+      "name": "אוריה קיטאי",
+      "pkal": "קשר",
+      "password": "111"
+    }
+  ],
+  "rounds": [
+    {
+      "soldier_name": "אוריה קיטאי",
+      "round": "א",
+      "status": "Approved",
+      "submitted_at": "2026-04-06"
+    }
+  ],
+  "swaps": []
+}
