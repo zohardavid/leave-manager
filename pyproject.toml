@@ -1,9 +1,10 @@
 [project]
-name = "repl-nix-workspace"
+name = "leave-manager"
 version = "0.1.0"
-description = "Add your description here"
+description = "Military reserve unit leave management application"
 requires-python = ">=3.11"
 dependencies = [
     "pandas>=3.0.2",
-    "streamlit>=1.56.0",
-]
+        "streamlit>=1.56.0",
+        ]
+        
