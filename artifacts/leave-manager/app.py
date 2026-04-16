@@ -727,9 +727,9 @@ def main():
         if pkal:
             st.caption(f'פק"ל: {pkal}')
         if st.session_state.role == "commander":
-            st.badge('מ"מ', color="blue")
+            st.markdown('<span style="background:#1d6fa5;color:white;padding:2px 10px;border-radius:12px;font-size:13px;">מ״מ</span>', unsafe_allow_html=True)
         else:
-            st.badge("חייל", color="green")
+            st.markdown('<span style="background:#1a7a3c;color:white;padding:2px 10px;border-radius:12px;font-size:13px;">חייל</span>', unsafe_allow_html=True)
         st.markdown("---")
         label, val = countdown_values()
         st.metric(label, f"{val} ימים")
