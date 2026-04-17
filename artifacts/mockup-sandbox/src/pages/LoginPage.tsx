@@ -86,33 +86,35 @@ export default function LoginPage({
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-5 bg-gradient-to-b from-[#3a4d33] to-[#1a2b1b]">
+    <div className="flex-1 flex flex-col items-center justify-center p-5 bg-[#f4f2ec]">
       <div className="w-full max-w-sm">
         <div className="text-center mb-7">
-          <div className="text-6xl mb-3">🪖</div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
+          <div className="w-20 h-20 rounded-2xl bg-[#4b6043] flex items-center justify-center text-5xl mx-auto mb-4 shadow-md">
+            🪖
+          </div>
+          <h1 className="text-2xl font-bold text-[#2d3a2e] tracking-tight">
             מערכת ניהול יציאות
           </h1>
-          <p className="text-[#b8ceaf] text-sm mt-1">
+          <p className="text-[#6b7a6b] text-sm mt-1">
             כניסה לחיילים ומפקדים
           </p>
           {(installPrompt || isIos) && (
             <button
               onClick={handleInstall}
-              className="mt-3 flex items-center gap-2 mx-auto bg-[#4b6043]/70 hover:bg-[#4b6043] text-white text-sm px-4 py-2 rounded-xl transition-colors"
+              className="mt-3 flex items-center gap-2 mx-auto bg-[#4b6043] hover:bg-[#3a4d33] text-white text-sm px-4 py-2 rounded-xl transition-colors shadow-sm"
             >
               <span>📲</span>
               <span>הוסף לדף הבית</span>
             </button>
           )}
           {showIosHint && (
-            <div className="mt-3 bg-[#4b6043]/80 text-white text-xs rounded-xl px-4 py-3 text-center leading-relaxed">
+            <div className="mt-3 bg-[#4b6043]/10 border border-[#4b6043]/20 text-[#2d3a2e] text-xs rounded-xl px-4 py-3 text-center leading-relaxed">
               לחץ על <strong>שתף</strong> ⬆️ ואז <strong>"הוסף למסך הבית"</strong>
             </div>
           )}
         </div>
 
-        <div className="bg-white rounded-2xl p-5 shadow-2xl">
+        <div className="bg-white rounded-2xl p-5 shadow-xl border border-[#e5e1d8]">
           <div className="flex bg-gray-100 rounded-xl p-1 mb-5">
             {(["login", "register"] as const).map((t) => (
               <button
