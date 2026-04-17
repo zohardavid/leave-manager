@@ -240,6 +240,10 @@ function RequestsTab({
   const [endDate, setEndDate] = useState(todayStr());
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editStart, setEditStart] = useState("");
+  const [editEnd, setEditEnd] = useState("");
+  const [editReason, setEditReason] = useState("");
 
   const [swapPartner, setSwapPartner] = useState("");
   const [swapStart, setSwapStart] = useState("2026-04-26");
@@ -257,6 +261,40 @@ function RequestsTab({
       setReason("");
       await onRefresh();
       setView("history");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "שגיאה");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("למחוק את הבקשה?")) return;
+    try {
+      await api.deleteRequest(id);
+      toast.success("הבקשה נמחקה");
+      await onRefresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "שגיאה");
+    }
+  };
+
+  const startEdit = (r: LeaveRequest) => {
+    setEditingId(r.id);
+    setEditStart(r.start_date);
+    setEditEnd(r.end_date);
+    setEditReason(r.reason);
+  };
+
+  const submitEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingId) return;
+    setLoading(true);
+    try {
+      await api.editRequest(editingId, { start_date: editStart, end_date: editEnd, reason: editReason });
+      toast.success("הבקשה עודכנה ונשלחה לאישור מחדש");
+      setEditingId(null);
+      await onRefresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "שגיאה");
     } finally {
@@ -350,13 +388,50 @@ function RequestsTab({
           ) : (
             [...requests].sort((a, b) => b.submitted_at.localeCompare(a.submitted_at)).map((r) => (
               <div key={r.id} className={`rounded-2xl border p-4 ${STATUS_COLOR[r.status] ?? ""}`}>
-                <div className="flex justify-between items-start">
-                  <div className="text-sm font-semibold text-gray-800">{r.start_date} ← {r.end_date}</div>
-                  <div className="text-xs">{STATUS_LABEL[r.status]}</div>
-                </div>
-                <div className="text-xs text-gray-500 mt-1">{diffDays(r.start_date, r.end_date)} ימים · {r.reason}</div>
-                {r.commander_note && (
-                  <div className="text-xs text-blue-700 mt-1.5 bg-blue-50 rounded-lg px-2 py-1">💬 {r.commander_note}</div>
+                {editingId === r.id ? (
+                  <form onSubmit={submitEdit} className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">מתאריך</label>
+                        <input type="date" value={editStart} onChange={(e) => setEditStart(e.target.value)} className={inputCls} required />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">עד תאריך</label>
+                        <input type="date" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} min={editStart} className={inputCls} required />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">סיבה</label>
+                      <textarea value={editReason} onChange={(e) => setEditReason(e.target.value)} className={`${inputCls} resize-none h-16 text-sm`} required />
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="submit" disabled={loading} className="flex-1 bg-[#4b6043] text-white py-2 rounded-xl text-sm font-semibold disabled:opacity-50">
+                        {loading ? "שומר..." : "שמור"}
+                      </button>
+                      <button type="button" onClick={() => setEditingId(null)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-xl text-sm font-semibold">
+                        ביטול
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-start">
+                      <div className="text-sm font-semibold text-gray-800">{r.start_date} ← {r.end_date}</div>
+                      <div className="text-xs">{STATUS_LABEL[r.status]}</div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">{diffDays(r.start_date, r.end_date)} ימים · {r.reason}</div>
+                    {r.commander_note && (
+                      <div className="text-xs text-blue-700 mt-1.5 bg-blue-50 rounded-lg px-2 py-1">💬 {r.commander_note}</div>
+                    )}
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => startEdit(r)} className="flex-1 text-xs border border-[#4b6043] text-[#4b6043] py-1.5 rounded-lg font-medium">
+                        ✏️ עריכה
+                      </button>
+                      <button onClick={() => handleDelete(r.id)} className="flex-1 text-xs border border-red-300 text-red-500 py-1.5 rounded-lg font-medium">
+                        🗑️ מחיקה
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             ))

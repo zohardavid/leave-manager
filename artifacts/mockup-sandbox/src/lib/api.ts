@@ -64,6 +64,18 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  editRequest: (
+    id: number,
+    data: { start_date: string; end_date: string; reason: string },
+  ) =>
+    request<LeaveRequest>(`/requests/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteRequest: (id: number) =>
+    request<void>(`/requests/${id}`, { method: "DELETE" }),
+
   getSoldiers: () => request<Soldier[]>("/soldiers"),
 
   deleteSoldier: (name: string) =>

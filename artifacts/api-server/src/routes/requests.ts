@@ -75,4 +75,39 @@ router.put("/:id", (req, res) => {
   res.json(request);
 });
 
+router.patch("/:id", (req, res) => {
+  const id = Number(req.params["id"]);
+  const { start_date, end_date, reason } = req.body as {
+    start_date?: string;
+    end_date?: string;
+    reason?: string;
+  };
+  const data = loadData();
+  const request = data.requests.find((r) => r.id === id);
+  if (!request) {
+    res.status(404).json({ error: "בקשה לא נמצאה" });
+    return;
+  }
+  if (start_date) request.start_date = start_date;
+  if (end_date) request.end_date = end_date;
+  if (reason?.trim()) request.reason = reason.trim();
+  request.status = "Pending";
+  request.commander_note = "";
+  saveData(data);
+  res.json(request);
+});
+
+router.delete("/:id", (req, res) => {
+  const id = Number(req.params["id"]);
+  const data = loadData();
+  const idx = data.requests.findIndex((r) => r.id === id);
+  if (idx === -1) {
+    res.status(404).json({ error: "בקשה לא נמצאה" });
+    return;
+  }
+  data.requests.splice(idx, 1);
+  saveData(data);
+  res.status(204).end();
+});
+
 export default router;
