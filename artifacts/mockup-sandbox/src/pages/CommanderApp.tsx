@@ -157,16 +157,16 @@ export default function CommanderApp({
   ];
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-[#f4f2ec]">
       {/* Header */}
-      <header className="bg-slate-800 text-white px-4 py-3 flex items-center justify-between shrink-0">
+      <header className="bg-[#4b6043] text-white px-4 py-3 flex items-center justify-between shrink-0">
         <div>
           <div className="font-bold text-base leading-tight">{soldier.name}</div>
-          <div className="text-slate-400 text-xs">{soldier.pkal}</div>
+          <div className="text-[#b8ceaf] text-xs">{soldier.pkal}</div>
         </div>
         <button
           onClick={onLogout}
-          className="text-slate-400 text-xs border border-slate-600 rounded-lg px-3 py-1.5"
+          className="text-[#b8ceaf] text-xs border border-[#3a4d33] rounded-lg px-3 py-1.5"
         >
           יציאה
         </button>
@@ -217,7 +217,7 @@ export default function CommanderApp({
             onClick={() => setTab(t.id)}
             className={`flex-1 flex flex-col items-center py-2.5 text-xs gap-0.5 transition-colors ${
               tab === t.id
-                ? "text-slate-800 font-semibold"
+                ? "text-[#4b6043] font-semibold"
                 : "text-gray-400"
             }`}
           >
@@ -306,7 +306,7 @@ function RequestsTab({
                     </div>
                     <textarea
                       placeholder="הערת מפקד (אופציונלי)"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none outline-none focus:ring-1 focus:ring-slate-400"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none outline-none focus:ring-1 focus:ring-[#4b6043]"
                       rows={2}
                       value={noteMap[r.id] ?? ""}
                       onChange={(e) =>
@@ -450,7 +450,7 @@ function CalendarTab({
   onLeaveOnDay: (day: number) => string[];
   soldiers: Soldier[];
 }) {
-  const MONTHS = ["", "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+  const MONTHS = ["", "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי"];
   const DAYS_HE = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
 
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -475,9 +475,9 @@ function CalendarTab({
           {MONTHS[calMonth]} 2026
         </span>
         <button
-          onClick={() => { setCalMonth(Math.min(6, calMonth + 1)); setSelectedDay(null); }}
+          onClick={() => { setCalMonth(Math.min(7, calMonth + 1)); setSelectedDay(null); }}
           className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600"
-          disabled={calMonth >= 6}
+          disabled={calMonth >= 7}
         >
           ◀
         </button>

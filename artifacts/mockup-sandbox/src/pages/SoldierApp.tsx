@@ -37,7 +37,7 @@ const STATUS_COLOR: Record<string, string> = {
   Denied: "bg-red-50 border-red-200",
 };
 
-const MONTH_NAMES: Record<number, string> = { 4: "אפריל", 5: "מאי", 6: "יוני" };
+const MONTH_NAMES: Record<number, string> = { 4: "אפריל", 5: "מאי", 6: "יוני", 7: "יולי" };
 const DAY_HEADERS = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "שבת"];
 
 function calendarWeeks(year: number, month: number) {
@@ -112,15 +112,15 @@ export default function SoldierApp({
   ];
 
   return (
-    <div className="flex flex-col h-full">
-      <header className="bg-slate-800 text-white px-4 py-3 flex items-center justify-between shrink-0">
+    <div className="flex flex-col h-full bg-[#f4f2ec]">
+      <header className="bg-[#4b6043] text-white px-4 py-3 flex items-center justify-between shrink-0">
         <div>
           <div className="font-semibold text-sm">{soldier.name}</div>
-          <div className="text-xs text-slate-400">{soldier.pkal}</div>
+          <div className="text-xs text-[#b8ceaf]">{soldier.pkal}</div>
         </div>
         <button
           onClick={onLogout}
-          className="text-xs text-slate-400 px-3 py-1.5 rounded-lg bg-slate-700 active:bg-slate-600"
+          className="text-xs text-[#b8ceaf] px-3 py-1.5 rounded-lg bg-[#3a4d33] active:bg-[#2e3d28]"
         >
           יציאה
         </button>
@@ -156,7 +156,7 @@ export default function SoldierApp({
             key={item.key}
             onClick={() => setTab(item.key)}
             className={`flex-1 flex flex-col items-center py-2 gap-0.5 text-xs transition-colors active:bg-gray-50 ${
-              tab === item.key ? "text-slate-800" : "text-gray-400"
+              tab === item.key ? "text-[#4b6043]" : "text-gray-400"
             }`}
           >
             <span className="text-xl leading-none">{item.icon}</span>
@@ -171,7 +171,7 @@ export default function SoldierApp({
 function MetricCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm">
-      <div className="text-2xl font-bold text-slate-800">{value}</div>
+      <div className="text-2xl font-bold text-[#2d3a2e]">{value}</div>
       <div className="text-sm font-medium text-gray-700 mt-0.5">{label}</div>
       {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
     </div>
@@ -195,7 +195,7 @@ function HomeTab({
 
   return (
     <div className="p-4 space-y-4">
-      <h2 className="text-lg font-bold text-slate-800">סקירה כללית</h2>
+      <h2 className="text-lg font-bold text-[#2d3a2e]">סקירה כללית</h2>
       <div className="grid grid-cols-2 gap-3">
         <MetricCard label="ימי בית שאושרו" value={`${daysApproved}`} sub="ימים" />
         <MetricCard label={countdownLabel} value={`${daysLeft}`} sub="ימים" />
@@ -213,7 +213,7 @@ function HomeTab({
 
       <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
         <p className="text-sm font-semibold text-amber-800 mb-1">🗓 תקופת תעסוקה</p>
-        <p className="text-xs text-amber-700">26.04.2026 – 26.06.2026</p>
+        <p className="text-xs text-amber-700">26.04.2026 – 13.07.2026</p>
         <p className="text-xs text-amber-600 mt-1">8 ימים בבסיס → 6 ימים בבית → חוזר</p>
       </div>
     </div>
@@ -282,7 +282,7 @@ function RequestsTab({
     }
   };
 
-  const inputCls = "w-full border border-gray-300 rounded-xl px-4 py-3 text-base outline-none focus:ring-2 focus:ring-slate-600 bg-white";
+  const inputCls = "w-full border border-gray-300 rounded-xl px-4 py-3 text-base outline-none focus:ring-2 focus:ring-[#4b6043] bg-white";
 
   return (
     <div className="p-4 space-y-4">
@@ -306,7 +306,7 @@ function RequestsTab({
 
       {view === "new" && (
         <form onSubmit={submitRequest} className="space-y-4 bg-white rounded-2xl p-4 shadow-sm">
-          <h3 className="font-semibold text-slate-800">בקשת יציאה חדשה</h3>
+          <h3 className="font-semibold text-[#2d3a2e]">בקשת יציאה חדשה</h3>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">תאריך התחלה</label>
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} required />
@@ -340,7 +340,7 @@ function RequestsTab({
               </div>
             ) : null;
           })()}
-          <button type="submit" disabled={loading} className="w-full bg-slate-800 text-white py-3 rounded-xl font-semibold disabled:opacity-50 active:scale-95 transition-transform">
+          <button type="submit" disabled={loading} className="w-full bg-[#4b6043] text-white py-3 rounded-xl font-semibold disabled:opacity-50 active:scale-95 transition-transform">
             {loading ? "שולח..." : "הגש בקשה"}
           </button>
         </form>
@@ -370,7 +370,7 @@ function RequestsTab({
       {view === "swap" && (
         <div className="space-y-4">
           <form onSubmit={submitSwap} className="space-y-4 bg-white rounded-2xl p-4 shadow-sm">
-            <h3 className="font-semibold text-slate-800">בקשת החלפת ימים</h3>
+            <h3 className="font-semibold text-[#2d3a2e]">בקשת החלפת ימים</h3>
             {soldiers.length === 0 ? (
               <p className="text-sm text-gray-400">אין חיילים נוספים רשומים</p>
             ) : (
@@ -386,14 +386,14 @@ function RequestsTab({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">מתאריך</label>
-                    <input type="date" value={swapStart} onChange={(e) => setSwapStart(e.target.value)} min="2026-04-26" max="2026-06-26" className={inputCls} required />
+                    <input type="date" value={swapStart} onChange={(e) => setSwapStart(e.target.value)} min="2026-04-26" max="2026-07-13" className={inputCls} required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">עד תאריך</label>
-                    <input type="date" value={swapEnd} onChange={(e) => setSwapEnd(e.target.value)} min={swapStart} max="2026-06-26" className={inputCls} required />
+                    <input type="date" value={swapEnd} onChange={(e) => setSwapEnd(e.target.value)} min={swapStart} max="2026-07-13" className={inputCls} required />
                   </div>
                 </div>
-                <button type="submit" disabled={loading} className="w-full bg-slate-800 text-white py-3 rounded-xl font-semibold disabled:opacity-50 active:scale-95 transition-transform">
+                <button type="submit" disabled={loading} className="w-full bg-[#4b6043] text-white py-3 rounded-xl font-semibold disabled:opacity-50 active:scale-95 transition-transform">
                   {loading ? "שולח..." : "שלח בקשת החלפה"}
                 </button>
               </>
@@ -453,11 +453,11 @@ function CalendarTab({
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-gray-200 inline-block" />בבסיס</span>
       </div>
 
-      {[4, 5, 6].map((month) => {
+      {[4, 5, 6, 7].map((month) => {
         const weeks = calendarWeeks(2026, month);
         return (
           <div key={month}>
-            <h3 className="font-bold text-slate-800 mb-2">{MONTH_NAMES[month]} 2026</h3>
+            <h3 className="font-bold text-[#2d3a2e] mb-2">{MONTH_NAMES[month]} 2026</h3>
             <div className="grid grid-cols-7 gap-0.5 mb-1">
               {DAY_HEADERS.map((h) => (
                 <div key={h} className="text-center text-xs text-gray-400 font-medium py-1">{h}</div>
@@ -469,7 +469,7 @@ function CalendarTab({
                   {week.map((day, di) => {
                     if (!day) return <div key={di} className="aspect-square" />;
                     const dateStr = `2026-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                    const inRange = dateStr >= "2026-04-26" && dateStr <= "2026-06-26";
+                    const inRange = dateStr >= "2026-04-26" && dateStr <= "2026-07-13";
                     if (!inRange) return (
                       <div key={di} className="aspect-square rounded-lg flex items-center justify-center text-xs text-gray-300 bg-gray-50">{day}</div>
                     );
