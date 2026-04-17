@@ -104,7 +104,7 @@ export default function LoginPage({
               className="mt-3 flex items-center gap-2 mx-auto bg-[#4b6043] hover:bg-[#3a4d33] text-white text-sm px-4 py-2 rounded-xl transition-colors shadow-sm"
             >
               <span>📲</span>
-              <span>הוסף לדף הבית</span>
+              <span>הורד את האפליקציה</span>
             </button>
           )}
           {showIosHint && (
