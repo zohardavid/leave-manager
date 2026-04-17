@@ -173,7 +173,7 @@ export default function CommanderApp({
       </header>
 
       {/* Body */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto pb-16">
         {loading ? (
           <div className="flex items-center justify-center h-40 text-gray-400">
             טוען...
@@ -199,6 +199,7 @@ export default function CommanderApp({
                 firstDay={firstDay}
                 onLeaveOnDay={onLeaveOnDay}
                 soldiers={soldiers}
+                requests={requests}
               />
             )}
             {tab === "soldiers" && <SoldiersTab stats={soldierStats} />}
@@ -210,7 +211,7 @@ export default function CommanderApp({
       </main>
 
       {/* Bottom nav */}
-      <nav className="shrink-0 bg-white border-t border-gray-200 flex">
+      <nav className="fixed bottom-0 inset-x-0 z-10 bg-white border-t border-gray-200 flex">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -440,8 +441,8 @@ function CalendarTab({
   setCalMonth,
   calDays,
   firstDay,
-  onLeaveOnDay,
   soldiers,
+  requests,
 }: {
   calMonth: number;
   setCalMonth: (m: number) => void;
@@ -449,72 +450,80 @@ function CalendarTab({
   firstDay: (m: number) => number;
   onLeaveOnDay: (day: number) => string[];
   soldiers: Soldier[];
+  requests: LeaveRequest[];
 }) {
   const MONTHS = ["", "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי"];
   const DAYS_HE = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
 
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const today = new Date();
+  const [selectedDay, setSelectedDay] = useState<number | null>(() => {
+    if (today.getFullYear() === 2026 && today.getMonth() + 1 === calMonth) {
+      return today.getDate();
+    }
+    return null;
+  });
+  const [focusedLeave, setFocusedLeave] = useState<LeaveRequest | null>(null);
 
   const firstDayOfMonth = firstDay(calMonth);
   const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
 
-  const leaveCountOnDay = (day: number) => onLeaveOnDay(day).length;
+  const leavesOnDay = (day: number): LeaveRequest[] => {
+    const dStr = `2026-${String(calMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    return requests.filter(
+      (r) => r.status === "Approved" && r.start_date <= dStr && r.end_date >= dStr,
+    );
+  };
+
+  const inDeployment = (day: number) => {
+    const d = new Date(2026, calMonth - 1, day);
+    return d >= DEPLOYMENT_START && d <= DEPLOYMENT_END;
+  };
+
+  const cellColor = (day: number, isSelected: boolean) => {
+    if (isSelected) return "bg-[#4b6043] text-white";
+    const count = leavesOnDay(day).length;
+    if (count > 0) return "bg-yellow-100 text-yellow-800";
+    if (!inDeployment(day)) return "bg-gray-50 text-gray-300";
+    const d = new Date(2026, calMonth - 1, day);
+    if (dayType(d) === "home") return "bg-green-50 text-green-700";
+    return "bg-white text-gray-700";
+  };
 
   return (
     <div className="p-4 space-y-4">
       {/* Month nav */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => { setCalMonth(Math.max(4, calMonth - 1)); setSelectedDay(null); }}
+          onClick={() => { setCalMonth(Math.max(4, calMonth - 1)); setSelectedDay(null); setFocusedLeave(null); }}
           className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600"
           disabled={calMonth <= 4}
-        >
-          ▶
-        </button>
-        <span className="font-semibold text-gray-800">
-          {MONTHS[calMonth]} 2026
-        </span>
+        >▶</button>
+        <span className="font-semibold text-gray-800">{MONTHS[calMonth]} 2026</span>
         <button
-          onClick={() => { setCalMonth(Math.min(7, calMonth + 1)); setSelectedDay(null); }}
+          onClick={() => { setCalMonth(Math.min(7, calMonth + 1)); setSelectedDay(null); setFocusedLeave(null); }}
           className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600"
           disabled={calMonth >= 7}
-        >
-          ◀
-        </button>
+        >◀</button>
       </div>
 
       {/* Day headers */}
       <div className="grid grid-cols-7 gap-1 text-center">
         {DAYS_HE.map((d) => (
-          <div key={d} className="text-xs font-medium text-gray-400 py-1">
-            {d}
-          </div>
+          <div key={d} className="text-xs font-medium text-gray-400 py-1">{d}</div>
         ))}
-
-        {blanks.map((i) => (
-          <div key={`b${i}`} />
-        ))}
-
+        {blanks.map((i) => <div key={`b${i}`} />)}
         {calDays.map((day) => {
-          const count = leaveCountOnDay(day);
+          const count = leavesOnDay(day).length;
           const isSelected = selectedDay === day;
           return (
             <button
               key={day}
-              onClick={() => setSelectedDay(isSelected ? null : day)}
-              className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-medium transition-colors ${
-                isSelected
-                  ? "bg-slate-800 text-white"
-                  : count > 0
-                    ? "bg-yellow-100 text-yellow-800"
-                    : "bg-white text-gray-700"
-              }`}
+              onClick={() => { setSelectedDay(isSelected ? null : day); setFocusedLeave(null); }}
+              className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-medium transition-colors ${cellColor(day, isSelected)}`}
             >
               <span>{day}</span>
               {count > 0 && (
-                <span
-                  className={`text-[9px] leading-none ${isSelected ? "text-yellow-200" : "text-yellow-600"}`}
-                >
+                <span className={`text-[9px] leading-none ${isSelected ? "text-yellow-200" : "text-yellow-600"}`}>
                   {count}
                 </span>
               )}
@@ -524,69 +533,76 @@ function CalendarTab({
       </div>
 
       {/* Legend */}
-      <div className="flex gap-3 text-xs text-gray-500">
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-yellow-100 border border-yellow-300" />
-          יש חיילים בחופשה
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-white border border-gray-200" />
-          כולם בבסיס
-        </span>
+      <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-100 border border-yellow-300" />יש בחופשה</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-50 border border-green-200" />יום בית</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-white border border-gray-200" />יום בסיס</span>
       </div>
 
       {/* Selected day details */}
-      {selectedDay !== null && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-          <div className="font-semibold text-gray-800">
-            {selectedDay}/{calMonth}/2026
-          </div>
-          {(() => {
-            const onLeave = onLeaveOnDay(selectedDay);
-            const d = new Date(2026, calMonth - 1, selectedDay);
-            const onBase = soldiers.filter((s) => {
-              if (onLeave.includes(s.name)) return false;
-              return dayType(d) === "base";
-            });
-            return (
-              <>
-                {onLeave.length > 0 && (
-                  <div>
-                    <div className="text-xs font-medium text-yellow-600 mb-1">
-                      בחופשה ({onLeave.length})
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {onLeave.map((n) => (
-                        <span
-                          key={n}
-                          className="bg-yellow-50 border border-yellow-200 text-xs px-2 py-0.5 rounded-full"
-                        >
-                          {n}
-                        </span>
-                      ))}
-                    </div>
+      {selectedDay !== null && (() => {
+        const d = new Date(2026, calMonth - 1, selectedDay);
+        const leaveReqs = leavesOnDay(selectedDay);
+        const isHomeDay = inDeployment(selectedDay) && dayType(d) === "home";
+        const onLeaveNames = leaveReqs.map((r) => r.soldier_name);
+        const onBase = soldiers.filter((s) => !onLeaveNames.includes(s.name));
+
+        return (
+          <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-gray-800">{selectedDay}/{calMonth}/2026</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isHomeDay ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
+                {isHomeDay ? "🏠 יום בית" : "🛡️ יום בסיס"}
+              </span>
+            </div>
+
+            {leaveReqs.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-yellow-600 mb-2">בחופשה ({leaveReqs.length})</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {leaveReqs.map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => setFocusedLeave(focusedLeave?.id === r.id ? null : r)}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                        focusedLeave?.id === r.id
+                          ? "bg-yellow-200 border-yellow-400 text-yellow-900 font-semibold"
+                          : "bg-yellow-50 border-yellow-200 text-yellow-800"
+                      }`}
+                    >
+                      {r.soldier_name}
+                    </button>
+                  ))}
+                </div>
+                {focusedLeave && (
+                  <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+                    <span className="font-semibold">{focusedLeave.soldier_name}</span>
+                    {" — "}{focusedLeave.reason}
+                    <span className="text-amber-600 mr-1"> ({fmt(focusedLeave.start_date)}–{fmt(focusedLeave.end_date)})</span>
                   </div>
                 )}
-                <div>
-                  <div className="text-xs font-medium text-green-600 mb-1">
-                    בבסיס ({onBase.length})
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {onBase.map((s) => (
-                      <span
-                        key={s.name}
-                        className="bg-green-50 border border-green-200 text-xs px-2 py-0.5 rounded-full"
-                      >
-                        {s.name}
-                      </span>
-                    ))}
-                  </div>
+              </div>
+            )}
+
+            {isHomeDay ? (
+              <div className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                כל שאר המחלקה בבית לפי לוח הסבב
+              </div>
+            ) : (
+              <div>
+                <div className="text-xs font-medium text-green-600 mb-2">בבסיס ({onBase.length})</div>
+                <div className="flex flex-wrap gap-1">
+                  {onBase.map((s) => (
+                    <span key={s.name} className="bg-green-50 border border-green-200 text-xs px-2 py-0.5 rounded-full">
+                      {s.name}
+                    </span>
+                  ))}
                 </div>
-              </>
-            );
-          })()}
-        </div>
-      )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

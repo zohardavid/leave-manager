@@ -89,7 +89,7 @@ export default function LoginPage({
     <div className="flex-1 flex flex-col items-center justify-center p-5 bg-[#f4f2ec]">
       <div className="w-full max-w-sm">
         <div className="text-center mb-7">
-          <div className="w-20 h-20 rounded-2xl bg-[#4b6043] flex items-center justify-center text-5xl mx-auto mb-4 shadow-md">
+          <div className="w-20 h-20 rounded-2xl bg-white flex items-center justify-center text-5xl mx-auto mb-4 shadow-md border border-[#e5e1d8]">
             🪖
           </div>
           <h1 className="text-2xl font-bold text-[#2d3a2e] tracking-tight">
