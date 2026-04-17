@@ -24,8 +24,8 @@ const STATUS_DOT: Record<string, string> = {
   Replaced: "bg-gray-400",
 };
 
-const DEPLOYMENT_START = new Date("2026-04-26");
-const DEPLOYMENT_END = new Date("2026-07-13");
+const DEPLOYMENT_START = new Date(2026, 3, 26); // local midnight, avoids UTC timezone shift
+const DEPLOYMENT_END = new Date(2026, 6, 13);
 const CYCLE_BASE = 8;
 const CYCLE_LENGTH = 14;
 
@@ -467,11 +467,17 @@ function CalendarTab({
   const firstDayOfMonth = firstDay(calMonth);
   const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
 
-  const leavesOnDay = (day: number): LeaveRequest[] => {
-    const dStr = `2026-${String(calMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    return requests.filter(
-      (r) => r.status === "Approved" && r.start_date <= dStr && r.end_date >= dStr,
-    );
+  const dStr = (day: number) =>
+    `2026-${String(calMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+  const approvedOnDay = (day: number) => {
+    const s = dStr(day);
+    return requests.filter((r) => r.status === "Approved" && r.start_date <= s && r.end_date >= s);
+  };
+
+  const pendingOnDay = (day: number) => {
+    const s = dStr(day);
+    return requests.filter((r) => r.status === "Pending" && r.start_date <= s && r.end_date >= s);
   };
 
   const inDeployment = (day: number) => {
@@ -481,8 +487,10 @@ function CalendarTab({
 
   const cellColor = (day: number, isSelected: boolean) => {
     if (isSelected) return "bg-[#4b6043] text-white";
-    const count = leavesOnDay(day).length;
-    if (count > 0) return "bg-yellow-100 text-yellow-800";
+    const approved = approvedOnDay(day).length;
+    const pending = pendingOnDay(day).length;
+    if (approved > 0) return "bg-yellow-100 text-yellow-800";
+    if (pending > 0) return "bg-orange-50 text-orange-700 border border-orange-200";
     if (!inDeployment(day)) return "bg-gray-50 text-gray-300";
     const d = new Date(2026, calMonth - 1, day);
     if (dayType(d) === "home") return "bg-green-50 text-green-700";
@@ -513,7 +521,8 @@ function CalendarTab({
         ))}
         {blanks.map((i) => <div key={`b${i}`} />)}
         {calDays.map((day) => {
-          const count = leavesOnDay(day).length;
+          const approved = approvedOnDay(day).length;
+          const pending = pendingOnDay(day).length;
           const isSelected = selectedDay === day;
           return (
             <button
@@ -522,10 +531,11 @@ function CalendarTab({
               className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-medium transition-colors ${cellColor(day, isSelected)}`}
             >
               <span>{day}</span>
-              {count > 0 && (
-                <span className={`text-[9px] leading-none ${isSelected ? "text-yellow-200" : "text-yellow-600"}`}>
-                  {count}
-                </span>
+              {approved > 0 && (
+                <span className={`text-[9px] leading-none ${isSelected ? "text-yellow-200" : "text-yellow-600"}`}>{approved}</span>
+              )}
+              {pending > 0 && approved === 0 && (
+                <span className={`text-[9px] leading-none ${isSelected ? "text-orange-200" : "text-orange-500"}`}>?{pending}</span>
               )}
             </button>
           );
@@ -534,7 +544,8 @@ function CalendarTab({
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3 text-xs text-gray-500">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-100 border border-yellow-300" />יש בחופשה</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-100 border border-yellow-300" />אושרה</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-50 border border-orange-300" />ממתינה</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-50 border border-green-200" />יום בית</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-white border border-gray-200" />יום בסיס</span>
       </div>
@@ -542,10 +553,11 @@ function CalendarTab({
       {/* Selected day details */}
       {selectedDay !== null && (() => {
         const d = new Date(2026, calMonth - 1, selectedDay);
-        const leaveReqs = leavesOnDay(selectedDay);
+        const approved = approvedOnDay(selectedDay);
+        const pending = pendingOnDay(selectedDay);
         const isHomeDay = inDeployment(selectedDay) && dayType(d) === "home";
-        const onLeaveNames = leaveReqs.map((r) => r.soldier_name);
-        const onBase = soldiers.filter((s) => !onLeaveNames.includes(s.name));
+        const absentNames = [...approved, ...pending].map((r) => r.soldier_name);
+        const onBase = soldiers.filter((s) => !absentNames.includes(s.name));
 
         return (
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
@@ -556,11 +568,11 @@ function CalendarTab({
               </span>
             </div>
 
-            {leaveReqs.length > 0 && (
+            {approved.length > 0 && (
               <div>
-                <div className="text-xs font-medium text-yellow-600 mb-2">בחופשה ({leaveReqs.length})</div>
+                <div className="text-xs font-medium text-yellow-600 mb-2">✅ בחופשה מאושרת ({approved.length})</div>
                 <div className="flex flex-wrap gap-1.5">
-                  {leaveReqs.map((r) => (
+                  {approved.map((r) => (
                     <button
                       key={r.id}
                       onClick={() => setFocusedLeave(focusedLeave?.id === r.id ? null : r)}
@@ -574,13 +586,35 @@ function CalendarTab({
                     </button>
                   ))}
                 </div>
-                {focusedLeave && (
-                  <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
-                    <span className="font-semibold">{focusedLeave.soldier_name}</span>
-                    {" — "}{focusedLeave.reason}
-                    <span className="text-amber-600 mr-1"> ({fmt(focusedLeave.start_date)}–{fmt(focusedLeave.end_date)})</span>
-                  </div>
-                )}
+              </div>
+            )}
+
+            {pending.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-orange-600 mb-2">⏳ בקשה ממתינה לאישור ({pending.length})</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {pending.map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => setFocusedLeave(focusedLeave?.id === r.id ? null : r)}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                        focusedLeave?.id === r.id
+                          ? "bg-orange-200 border-orange-400 text-orange-900 font-semibold"
+                          : "bg-orange-50 border-orange-200 text-orange-700"
+                      }`}
+                    >
+                      {r.soldier_name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {focusedLeave && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+                <span className="font-semibold">{focusedLeave.soldier_name}</span>
+                {" — "}{focusedLeave.reason}
+                <span className="text-amber-600 mr-1"> ({fmt(focusedLeave.start_date)}–{fmt(focusedLeave.end_date)})</span>
               </div>
             )}
 

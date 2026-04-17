@@ -3,8 +3,8 @@ import type { Soldier, LeaveRequest, Swap } from "../lib/types";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 
-const DEPLOYMENT_START = new Date("2026-04-26");
-const DEPLOYMENT_END = new Date("2026-07-13");
+const DEPLOYMENT_START = new Date(2026, 3, 26); // local midnight, avoids UTC timezone shift
+const DEPLOYMENT_END = new Date(2026, 6, 13);
 const CYCLE_BASE = 8;
 const CYCLE_HOME = 6;
 const CYCLE_LENGTH = CYCLE_BASE + CYCLE_HOME;
