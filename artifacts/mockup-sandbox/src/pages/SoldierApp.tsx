@@ -150,7 +150,7 @@ export default function SoldierApp({
         )}
       </main>
 
-      <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 flex">
+      <nav className="fixed bottom-0 inset-x-0 z-10 bg-white border-t border-gray-200 flex">
         {navItems.map((item) => (
           <button
             key={item.key}
