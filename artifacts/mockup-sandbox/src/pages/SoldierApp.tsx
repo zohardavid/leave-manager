@@ -197,7 +197,7 @@ function HomeTab({
     <div className="p-4 space-y-4">
       <h2 className="text-lg font-bold text-[#2d3a2e]">סקירה כללית</h2>
       <div className="grid grid-cols-2 gap-3">
-        <MetricCard label="ימי בית שאושרו" value={`${daysApproved}`} sub="ימים" />
+        <MetricCard label="בקשות יציאה שאושרו" value={`${daysApproved}`} sub="ימים" />
         <MetricCard label={countdownLabel} value={`${daysLeft}`} sub="ימים" />
         <MetricCard label="בקשות שהוגשו" value={`${requestCount}`} />
         {isInDeployment && (
@@ -241,15 +241,12 @@ function RequestsTab({
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [swapPartner, setSwapPartner] = useState(soldiers[0]?.name ?? "");
+  const [swapPartner, setSwapPartner] = useState("");
   const [swapStart, setSwapStart] = useState("2026-04-26");
   const [swapEnd, setSwapEnd] = useState("2026-04-26");
 
   const mySwaps = swaps.filter((s) => s.requester === soldier.name);
 
-  useEffect(() => {
-    if (soldiers.length && !swapPartner) setSwapPartner(soldiers[0]!.name);
-  }, [soldiers, swapPartner]);
 
   const submitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -371,17 +368,17 @@ function RequestsTab({
         <div className="space-y-4">
           <form onSubmit={submitSwap} className="space-y-4 bg-white rounded-2xl p-4 shadow-sm">
             <h3 className="font-semibold text-[#2d3a2e]">בקשת החלפת ימים</h3>
-            {soldiers.length === 0 ? (
-              <p className="text-sm text-gray-400">אין חיילים נוספים רשומים</p>
-            ) : (
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">חייל להחלפה</label>
-                  <select value={swapPartner} onChange={(e) => setSwapPartner(e.target.value)} className={inputCls}>
-                    {soldiers.map((s) => (
-                      <option key={s.name} value={s.name}>{s.name} ({s.pkal})</option>
-                    ))}
-                  </select>
+                  <input
+                    type="text"
+                    value={swapPartner}
+                    onChange={(e) => setSwapPartner(e.target.value)}
+                    placeholder="שם החייל"
+                    className={inputCls}
+                    required
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -397,7 +394,6 @@ function RequestsTab({
                   {loading ? "שולח..." : "שלח בקשת החלפה"}
                 </button>
               </>
-            )}
           </form>
 
           {mySwaps.length > 0 && (
@@ -448,7 +444,7 @@ function CalendarTab({
     <div className="p-4 space-y-5 pb-6">
       <div className="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-200 inline-block" />בבית לפי לוח</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-yellow-200 inline-block" />יציאה מאושרת</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-yellow-200 inline-block" />בקשה שאושרה</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-200 inline-block" />החלפה</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-gray-200 inline-block" />בבסיס</span>
       </div>
@@ -475,7 +471,7 @@ function CalendarTab({
                     );
                     const cat = classify(dateStr);
                     const colors = { home: "bg-green-100 text-green-800", leave: "bg-yellow-100 text-yellow-800", swap: "bg-blue-100 text-blue-800", base: "bg-gray-100 text-gray-500" }[cat];
-                    const icons = { home: "🏠", leave: "✈️", swap: "🔁", base: "🛡️" }[cat];
+                    const icons = { home: "🏠", leave: "👍", swap: "🔁", base: "🛡️" }[cat];
                     return (
                       <div key={di} className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-medium ${colors}`}>
                         <span className="leading-none text-[11px]">{day}</span>
