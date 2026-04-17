@@ -1,7 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Soldier } from "../lib/types";
 import { api } from "../lib/api";
 import { toast } from "sonner";
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
 
 const PKALS = [
   "לוחם","חובש","קשר","מטול","קלע","איבו","אבטה","נגב","מאג","מפקד מחלקה",
@@ -17,6 +22,29 @@ export default function LoginPage({
 }) {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isIos, setIsIos] = useState(false);
+  const [showIosHint, setShowIosHint] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) &&
+      !(window.navigator as unknown as { standalone?: boolean }).standalone;
+    setIsIos(ios);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (installPrompt) {
+      await installPrompt.prompt();
+    } else if (isIos) {
+      setShowIosHint(true);
+    }
+  };
 
   const [loginName, setLoginName] = useState("");
   const [loginPw, setLoginPw] = useState("");
@@ -68,6 +96,20 @@ export default function LoginPage({
           <p className="text-slate-400 text-sm mt-1">
             כניסה לחיילים ומפקדים
           </p>
+          {(installPrompt || isIos) && (
+            <button
+              onClick={handleInstall}
+              className="mt-3 flex items-center gap-2 mx-auto bg-slate-700 hover:bg-slate-600 text-white text-sm px-4 py-2 rounded-xl transition-colors"
+            >
+              <span>📲</span>
+              <span>הוסף לדף הבית</span>
+            </button>
+          )}
+          {showIosHint && (
+            <div className="mt-3 bg-slate-700 text-white text-xs rounded-xl px-4 py-3 text-center leading-relaxed">
+              לחץ על <strong>שתף</strong> ⬆️ ואז <strong>"הוסף למסך הבית"</strong>
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl p-5 shadow-2xl">
