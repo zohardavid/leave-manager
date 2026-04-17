@@ -1,15 +1,14 @@
 import { Router } from "express";
-import { loadData, saveData, getNextId } from "../lib/data.js";
-import type { RequestStatus } from "../lib/data.js";
+import { query } from "../lib/db.js";
 
 const router = Router();
 
-router.get("/", (_req, res) => {
-  const data = loadData();
-  res.json(data.swaps);
+router.get("/", async (_req, res) => {
+  const result = await query("SELECT * FROM swaps ORDER BY submitted_at DESC");
+  res.json(result.rows);
 });
 
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   const { requester, partner, start_date, end_date } = req.body as {
     requester?: string;
     partner?: string;
@@ -24,33 +23,30 @@ router.post("/", (req, res) => {
     res.status(400).json({ error: "תאריך סיום לפני תאריך התחלה" });
     return;
   }
-  const data = loadData();
-  const newSwap = {
-    id: getNextId(data),
-    requester,
-    partner,
-    start_date,
-    end_date,
-    status: "Pending" as RequestStatus,
-    submitted_at: new Date().toISOString().slice(0, 10),
-  };
-  data.swaps.push(newSwap);
-  saveData(data);
-  res.status(201).json(newSwap);
+  const result = await query(
+    `INSERT INTO swaps (requester, partner, start_date, end_date, status, submitted_at)
+     VALUES ($1, $2, $3, $4, 'Pending', $5) RETURNING *`,
+    [requester, partner, start_date, end_date, new Date().toISOString().slice(0, 10)],
+  );
+  res.status(201).json(result.rows[0]);
 });
 
-router.put("/:id", (req, res) => {
+router.put("/:id", async (req, res) => {
   const id = Number(req.params["id"]);
-  const { status } = req.body as { status?: RequestStatus };
-  const data = loadData();
-  const swap = data.swaps.find((s) => s.id === id);
-  if (!swap) {
+  const { status } = req.body as { status?: string };
+  if (!status) {
+    res.status(400).json({ error: "סטטוס נדרש" });
+    return;
+  }
+  const result = await query(
+    "UPDATE swaps SET status = $1 WHERE id = $2 RETURNING *",
+    [status, id],
+  );
+  if (result.rows.length === 0) {
     res.status(404).json({ error: "החלפה לא נמצאה" });
     return;
   }
-  if (status) swap.status = status;
-  saveData(data);
-  res.json(swap);
+  res.json(result.rows[0]);
 });
 
 export default router;

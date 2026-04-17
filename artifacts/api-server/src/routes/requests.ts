@@ -1,19 +1,17 @@
 import { Router } from "express";
-import { loadData, saveData, getNextId } from "../lib/data.js";
-import type { RequestStatus } from "../lib/data.js";
+import { query } from "../lib/db.js";
 
 const router = Router();
 
-router.get("/", (req, res) => {
-  const data = loadData();
+router.get("/", async (req, res) => {
   const { soldier } = req.query as { soldier?: string };
-  const requests = soldier
-    ? data.requests.filter((r) => r.soldier_name === soldier)
-    : data.requests;
-  res.json(requests);
+  const result = soldier
+    ? await query("SELECT * FROM requests WHERE soldier_name = $1 ORDER BY submitted_at DESC", [soldier])
+    : await query("SELECT * FROM requests ORDER BY submitted_at DESC");
+  res.json(result.rows);
 });
 
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   const { soldier_name, start_date, end_date, reason } = req.body as {
     soldier_name?: string;
     start_date?: string;
@@ -28,85 +26,74 @@ router.post("/", (req, res) => {
     res.status(400).json({ error: "תאריך סיום לפני תאריך התחלה" });
     return;
   }
-  const data = loadData();
-  const existing = data.requests.filter(
-    (r) => r.soldier_name === soldier_name && r.status !== "Denied",
+  const overlap = await query(
+    `SELECT id FROM requests WHERE soldier_name = $1 AND status != 'Denied'
+     AND NOT (end_date < $2 OR start_date > $3)`,
+    [soldier_name, start_date, end_date],
   );
-  const overlap = existing.some(
-    (r) =>
-      !(
-        end_date < r.start_date || start_date > r.end_date
-      ),
-  );
-  if (overlap) {
+  if ((overlap.rowCount ?? 0) > 0) {
     res.status(409).json({ error: "קיימת בקשה חופפת בתאריכים אלו" });
     return;
   }
-  const newReq = {
-    id: getNextId(data),
-    soldier_name,
-    start_date,
-    end_date,
-    reason: reason.trim(),
-    status: "Pending" as RequestStatus,
-    submitted_at: new Date().toISOString().slice(0, 10),
-    commander_note: "",
-  };
-  data.requests.push(newReq);
-  saveData(data);
-  res.status(201).json(newReq);
+  const result = await query(
+    `INSERT INTO requests (soldier_name, start_date, end_date, reason, status, submitted_at, commander_note)
+     VALUES ($1, $2, $3, $4, 'Pending', $5, '') RETURNING *`,
+    [soldier_name, start_date, end_date, reason.trim(), new Date().toISOString().slice(0, 10)],
+  );
+  res.status(201).json(result.rows[0]);
 });
 
-router.put("/:id", (req, res) => {
+router.put("/:id", async (req, res) => {
   const id = Number(req.params["id"]);
   const { status, commander_note } = req.body as {
-    status?: RequestStatus;
+    status?: string;
     commander_note?: string;
   };
-  const data = loadData();
-  const request = data.requests.find((r) => r.id === id);
-  if (!request) {
+  const result = await query(
+    `UPDATE requests SET
+       status = COALESCE($1, status),
+       commander_note = COALESCE($2, commander_note)
+     WHERE id = $3 RETURNING *`,
+    [status ?? null, commander_note ?? null, id],
+  );
+  if (result.rows.length === 0) {
     res.status(404).json({ error: "בקשה לא נמצאה" });
     return;
   }
-  if (status) request.status = status;
-  if (commander_note !== undefined) request.commander_note = commander_note;
-  saveData(data);
-  res.json(request);
+  res.json(result.rows[0]);
 });
 
-router.patch("/:id", (req, res) => {
+router.patch("/:id", async (req, res) => {
   const id = Number(req.params["id"]);
   const { start_date, end_date, reason } = req.body as {
     start_date?: string;
     end_date?: string;
     reason?: string;
   };
-  const data = loadData();
-  const request = data.requests.find((r) => r.id === id);
-  if (!request) {
+  const result = await query(
+    `UPDATE requests SET
+       start_date = COALESCE($1, start_date),
+       end_date = COALESCE($2, end_date),
+       reason = COALESCE($3, reason),
+       status = 'Pending',
+       commander_note = ''
+     WHERE id = $4 RETURNING *`,
+    [start_date ?? null, end_date ?? null, reason?.trim() ?? null, id],
+  );
+  if (result.rows.length === 0) {
     res.status(404).json({ error: "בקשה לא נמצאה" });
     return;
   }
-  if (start_date) request.start_date = start_date;
-  if (end_date) request.end_date = end_date;
-  if (reason?.trim()) request.reason = reason.trim();
-  request.status = "Pending";
-  request.commander_note = "";
-  saveData(data);
-  res.json(request);
+  res.json(result.rows[0]);
 });
 
-router.delete("/:id", (req, res) => {
+router.delete("/:id", async (req, res) => {
   const id = Number(req.params["id"]);
-  const data = loadData();
-  const idx = data.requests.findIndex((r) => r.id === id);
-  if (idx === -1) {
+  const result = await query("DELETE FROM requests WHERE id = $1", [id]);
+  if ((result.rowCount ?? 0) === 0) {
     res.status(404).json({ error: "בקשה לא נמצאה" });
     return;
   }
-  data.requests.splice(idx, 1);
-  saveData(data);
   res.status(204).end();
 });
 
