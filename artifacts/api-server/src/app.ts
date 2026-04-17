@@ -38,7 +38,7 @@ app.use("/api", router);
 if (process.env.NODE_ENV === "production") {
   const staticDir = path.resolve(__dirname, "../../mockup-sandbox/dist");
   app.use(express.static(staticDir));
-  app.get("*", (_req, res) => {
+  app.use((_req, res) => {
     res.sendFile(path.join(staticDir, "index.html"));
   });
 }
