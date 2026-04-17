@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { Soldier, LeaveRequest, Round, Swap } from "../lib/types";
+import type { Soldier, LeaveRequest, Swap } from "../lib/types";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 
@@ -26,18 +26,13 @@ const STATUS_DOT: Record<string, string> = {
 
 const DEPLOYMENT_START = new Date("2026-04-26");
 const DEPLOYMENT_END = new Date("2026-06-26");
-const ROUTINE_START = new Date("2026-04-30");
-const CYCLE_LENGTH = 15;
+const CYCLE_BASE = 8;
+const CYCLE_LENGTH = 14;
 
-function dayType(d: Date, round: string): "home" | "base" | "deploy" {
+function dayType(d: Date): "home" | "base" {
   if (d < DEPLOYMENT_START || d > DEPLOYMENT_END) return "base";
-  if (d < ROUTINE_START) return "deploy";
-  const diff = Math.floor(
-    (d.getTime() - ROUTINE_START.getTime()) / 86400000,
-  );
-  const pos = ((diff % CYCLE_LENGTH) + CYCLE_LENGTH) % CYCLE_LENGTH;
-  const homeA = pos < 7;
-  return (round === "א" ? homeA : !homeA) ? "home" : "base";
+  const diff = Math.floor((d.getTime() - DEPLOYMENT_START.getTime()) / 86400000);
+  return diff % CYCLE_LENGTH < CYCLE_BASE ? "base" : "home";
 }
 
 function fmt(d: string) {
@@ -58,24 +53,21 @@ export default function CommanderApp({
     "requests",
   );
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
-  const [rounds, setRounds] = useState<Round[]>([]);
   const [swaps, setSwaps] = useState<Swap[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [loading, setLoading] = useState(true);
   const [noteMap, setNoteMap] = useState<Record<number, string>>({});
-  const [calMonth, setCalMonth] = useState(4); // April = 4
+  const [calMonth, setCalMonth] = useState(4);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [r, ro, sw, s] = await Promise.all([
+      const [r, sw, s] = await Promise.all([
         api.getRequests(),
-        api.getRounds(),
         api.getSwaps(),
         api.getSoldiers(),
       ]);
       setRequests(r);
-      setRounds(ro);
       setSwaps(sw);
       setSoldiers(s);
     } catch {
@@ -85,31 +77,13 @@ export default function CommanderApp({
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useEffect(() => { void refresh(); }, [refresh]);
 
   const handleRequest = async (id: number, status: "Approved" | "Denied") => {
     try {
-      const updated = await api.updateRequest(id, {
-        status,
-        commander_note: noteMap[id] ?? "",
-      });
+      const updated = await api.updateRequest(id, { status, commander_note: noteMap[id] ?? "" });
       setRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
       toast.success(status === "Approved" ? "אושר" : "נדחה");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "שגיאה");
-    }
-  };
-
-  const handleRound = async (idx: number, status: "Approved" | "Denied") => {
-    try {
-      const updated = await api.updateRound(idx, { status });
-      setRounds((prev) =>
-        prev.map((r, i) => (i === idx ? updated : r)),
-      );
-      await refresh();
-      toast.success(status === "Approved" ? "סבב אושר" : "סבב נדחה");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "שגיאה");
     }
@@ -137,24 +111,11 @@ export default function CommanderApp({
   };
 
   const pendingRequests = requests.filter((r) => r.status === "Pending");
-  const pendingRounds = rounds
-    .map((r, i) => ({ ...r, idx: i }))
-    .filter((r) => r.status === "Pending");
   const pendingSwaps = swaps.filter((s) => s.status === "Pending");
-  const totalPending =
-    pendingRequests.length + pendingRounds.length + pendingSwaps.length;
-
-  // ── Calendar helpers ──────────────────────────────────────────────
-  const approvedRoundOf = (name: string): string | null => {
-    const r = rounds
-      .filter((ro) => ro.soldier_name === name && ro.status === "Approved")
-      .at(-1);
-    return r ? r.round : null;
-  };
+  const totalPending = pendingRequests.length + pendingSwaps.length;
 
   const daysInMonth = (m: number) => new Date(2026, m, 0).getDate();
-  const firstDay = (m: number) =>
-    new Date(2026, m - 1, 1).getDay();
+  const firstDay = (m: number) => new Date(2026, m - 1, 1).getDay();
 
   const calDays = Array.from({ length: daysInMonth(calMonth) }, (_, i) => i + 1);
 
@@ -185,8 +146,7 @@ export default function CommanderApp({
         1
       );
     }, 0);
-    const round = approvedRoundOf(s.name);
-    return { ...s, days, round };
+    return { ...s, days };
   });
 
   const TABS = [
@@ -224,12 +184,10 @@ export default function CommanderApp({
               <RequestsTab
                 requests={requests}
                 pendingRequests={pendingRequests}
-                pendingRounds={pendingRounds}
                 pendingSwaps={pendingSwaps}
                 noteMap={noteMap}
                 setNoteMap={setNoteMap}
                 onRequest={handleRequest}
-                onRound={handleRound}
                 onSwap={handleSwap}
               />
             )}
@@ -241,8 +199,6 @@ export default function CommanderApp({
                 firstDay={firstDay}
                 onLeaveOnDay={onLeaveOnDay}
                 soldiers={soldiers}
-                approvedRoundOf={approvedRoundOf}
-                dayType={dayType}
               />
             )}
             {tab === "soldiers" && <SoldiersTab stats={soldierStats} />}
@@ -284,22 +240,18 @@ export default function CommanderApp({
 function RequestsTab({
   requests,
   pendingRequests,
-  pendingRounds,
   pendingSwaps,
   noteMap,
   setNoteMap,
   onRequest,
-  onRound,
   onSwap,
 }: {
   requests: LeaveRequest[];
   pendingRequests: LeaveRequest[];
-  pendingRounds: (Round & { idx: number })[];
   pendingSwaps: Swap[];
   noteMap: Record<number, string>;
   setNoteMap: React.Dispatch<React.SetStateAction<Record<number, string>>>;
   onRequest: (id: number, status: "Approved" | "Denied") => void;
-  onRound: (idx: number, status: "Approved" | "Denied") => void;
   onSwap: (id: number, status: "Approved" | "Denied") => void;
 }) {
   const [subTab, setSubTab] = useState<"pending" | "history">("pending");
@@ -381,49 +333,6 @@ function RequestsTab({
             </section>
           )}
 
-          {/* Pending rounds */}
-          {pendingRounds.length > 0 && (
-            <section>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">
-                בקשות סבב
-              </h3>
-              <div className="space-y-3">
-                {pendingRounds.map((r) => (
-                  <div
-                    key={r.idx}
-                    className="bg-white rounded-xl border border-gray-200 p-4 space-y-3"
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="font-semibold">{r.soldier_name}</div>
-                        <div className="text-sm text-gray-500">
-                          סבב {r.round}
-                        </div>
-                      </div>
-                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
-                        ממתין
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => onRound(r.idx, "Approved")}
-                        className="flex-1 bg-green-600 text-white py-2 rounded-xl text-sm font-semibold"
-                      >
-                        ✓ אישור
-                      </button>
-                      <button
-                        onClick={() => onRound(r.idx, "Denied")}
-                        className="flex-1 bg-red-500 text-white py-2 rounded-xl text-sm font-semibold"
-                      >
-                        ✗ דחייה
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
           {/* Pending swaps */}
           {pendingSwaps.length > 0 && (
             <section>
@@ -470,7 +379,6 @@ function RequestsTab({
           )}
 
           {pendingRequests.length === 0 &&
-            pendingRounds.length === 0 &&
             pendingSwaps.length === 0 && (
               <div className="text-center text-gray-400 py-10">
                 אין בקשות ממתינות
@@ -534,8 +442,6 @@ function CalendarTab({
   firstDay,
   onLeaveOnDay,
   soldiers,
-  approvedRoundOf,
-  dayType: getDayType,
 }: {
   calMonth: number;
   setCalMonth: (m: number) => void;
@@ -543,8 +449,6 @@ function CalendarTab({
   firstDay: (m: number) => number;
   onLeaveOnDay: (day: number) => string[];
   soldiers: Soldier[];
-  approvedRoundOf: (name: string) => string | null;
-  dayType: (d: Date, round: string) => "home" | "base" | "deploy";
 }) {
   const MONTHS = ["", "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
   const DAYS_HE = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
@@ -642,9 +546,7 @@ function CalendarTab({
             const d = new Date(2026, calMonth - 1, selectedDay);
             const onBase = soldiers.filter((s) => {
               if (onLeave.includes(s.name)) return false;
-              const r = approvedRoundOf(s.name);
-              if (!r) return true;
-              return getDayType(d, r) === "base";
+              return dayType(d) === "base";
             });
             return (
               <>
@@ -694,7 +596,7 @@ function CalendarTab({
 function SoldiersTab({
   stats,
 }: {
-  stats: Array<Soldier & { days: number; round: string | null }>;
+  stats: Array<Soldier & { days: number }>;
 }) {
   return (
     <div className="p-4">
@@ -710,9 +612,6 @@ function SoldiersTab({
               </th>
               <th className="text-center px-3 py-2.5 font-medium text-gray-600">
                 ימי חופש
-              </th>
-              <th className="text-center px-3 py-2.5 font-medium text-gray-600">
-                סבב
               </th>
             </tr>
           </thead>
@@ -738,21 +637,6 @@ function SoldiersTab({
                   >
                     {s.days}
                   </span>
-                </td>
-                <td className="px-3 py-2.5 text-center">
-                  {s.round ? (
-                    <span
-                      className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                        s.round === "א"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-purple-100 text-purple-700"
-                      }`}
-                    >
-                      {s.round}
-                    </span>
-                  ) : (
-                    <span className="text-gray-300 text-xs">—</span>
-                  )}
                 </td>
               </tr>
             ))}
