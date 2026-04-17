@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { toast } from "sonner";
 
 const DEPLOYMENT_START = new Date("2026-04-26");
-const DEPLOYMENT_END = new Date("2026-06-26");
+const DEPLOYMENT_END = new Date("2026-07-13");
 const CYCLE_BASE = 8;
 const CYCLE_HOME = 6;
 const CYCLE_LENGTH = CYCLE_BASE + CYCLE_HOME;

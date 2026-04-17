@@ -25,7 +25,7 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 const DEPLOYMENT_START = new Date("2026-04-26");
-const DEPLOYMENT_END = new Date("2026-06-26");
+const DEPLOYMENT_END = new Date("2026-07-13");
 const CYCLE_BASE = 8;
 const CYCLE_LENGTH = 14;
 
