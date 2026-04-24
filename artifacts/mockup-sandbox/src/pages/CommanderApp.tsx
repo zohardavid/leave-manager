@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { toast } from "sonner";
 import { countLeaveDays } from "./SoldierApp";
 import { subscribeToPush, unsubscribeFromPush } from "../lib/pushUtils";
+import { IconClipboard, IconCalendar, IconUsers, IconBell, IconBellSlash, IconCog, IconBarChart, IconLogout } from "../lib/icons";
 
 const STATUS_LABEL: Record<string, string> = {
   Pending: "ממתין",
@@ -186,12 +187,12 @@ export default function CommanderApp({
     return { ...s, days };
   });
 
-  const TABS = [
-    { id: "requests" as const, label: "בקשות", icon: "📋" },
-    { id: "calendar" as const, label: "לוח", icon: "📅" },
-    { id: "soldiers" as const, label: "חיילים", icon: "📊" },
-    { id: "notifications" as const, label: "התראות", icon: "🔔" },
-    { id: "manage" as const, label: "ניהול", icon: "👥" },
+  const TABS: { id: "requests" | "calendar" | "soldiers" | "notifications" | "manage"; label: string; Icon: React.FC<{ className?: string }> }[] = [
+    { id: "requests", label: "בקשות", Icon: IconClipboard },
+    { id: "calendar", label: "לוח", Icon: IconCalendar },
+    { id: "soldiers", label: "חיילים", Icon: IconBarChart },
+    { id: "notifications", label: "התראות", Icon: IconBell },
+    { id: "manage", label: "ניהול", Icon: IconCog },
   ];
 
   const todayDisplay = new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" });
@@ -222,16 +223,15 @@ export default function CommanderApp({
                   else toast.error("לא ניתן להפעיל התראות");
                 }
               }}
-              className="text-xl leading-none opacity-80 active:opacity-60"
+              className="text-[#b8ceaf] opacity-90 active:opacity-60"
             >
-              {pushEnabled ? "🔔" : "🔕"}
+              {pushEnabled ? <IconBell className="w-5 h-5" /> : <IconBellSlash className="w-5 h-5" />}
             </button>
             <button
               onClick={onLogout}
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-[#3a4d33] active:bg-[#2e3d28] text-[#b8ceaf] text-base font-bold"
-              title="יציאה"
+              className="text-[#b8ceaf] text-xs border border-[#3a4d33] rounded-lg px-3 py-1.5 active:bg-[#3a4d33]"
             >
-              ↩
+              יציאה
             </button>
           </div>
         </div>
@@ -297,9 +297,11 @@ export default function CommanderApp({
             onClick={() => setTab(t.id)}
             className="flex-1 flex flex-col items-center py-2 gap-0.5 active:opacity-70"
           >
-            <span className={`text-lg leading-none w-10 h-7 flex items-center justify-center rounded-xl transition-colors ${
-              tab === t.id ? "bg-[#4b6043]/12" : ""
-            }`}>{t.icon}</span>
+            <span className={`w-10 h-7 flex items-center justify-center rounded-xl transition-colors ${
+              tab === t.id ? "bg-[#4b6043]/12 text-[#4b6043]" : "text-gray-400"
+            }`}>
+              <t.Icon className="w-4 h-4" />
+            </span>
             <span className={`text-[10px] leading-none transition-colors ${tab === t.id ? "text-[#4b6043] font-bold" : "text-gray-400"}`}>
               {t.label}{t.id === "requests" && totalPending > 0 ? ` (${totalPending})` : ""}
             </span>

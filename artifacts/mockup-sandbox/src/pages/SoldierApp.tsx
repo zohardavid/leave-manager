@@ -3,6 +3,7 @@ import type { Soldier, LeaveRequest, Swap } from "../lib/types";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 import { subscribeToPush, unsubscribeFromPush } from "../lib/pushUtils";
+import { IconHome, IconClipboard, IconCalendar, IconBell, IconBellSlash, IconLogout } from "../lib/icons";
 
 const DEPLOYMENT_START = new Date(2026, 3, 26); // local midnight, avoids UTC timezone shift
 const DEPLOYMENT_END = new Date(2026, 6, 13);
@@ -118,10 +119,10 @@ export default function SoldierApp({
     : today <= DEPLOYMENT_END ? "ימים לסיום תעסוקה"
     : "התעסוקה הסתיימה";
 
-  const navItems: { key: Tab; icon: string; label: string }[] = [
-    { key: "home", icon: "🏠", label: "בית" },
-    { key: "requests", icon: "📋", label: "בקשות" },
-    { key: "calendar", icon: "📅", label: "לוח" },
+  const navItems: { key: Tab; label: string; Icon: React.FC<{ className?: string }> }[] = [
+    { key: "home", label: "בית", Icon: IconHome },
+    { key: "requests", label: "בקשות", Icon: IconClipboard },
+    { key: "calendar", label: "לוח", Icon: IconCalendar },
   ];
 
   const todayDisplay = new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" });
@@ -151,16 +152,16 @@ export default function SoldierApp({
                   else toast.error("לא ניתן להפעיל התראות");
                 }
               }}
-              className="text-xl leading-none opacity-80 active:opacity-60"
+              className="text-[#b8ceaf] opacity-90 active:opacity-60"
+              title={pushEnabled ? "כבה התראות" : "הפעל התראות"}
             >
-              {pushEnabled ? "🔔" : "🔕"}
+              {pushEnabled ? <IconBell className="w-5 h-5" /> : <IconBellSlash className="w-5 h-5" />}
             </button>
             <button
               onClick={onLogout}
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-[#3a4d33] active:bg-[#2e3d28] text-[#b8ceaf] text-base font-bold"
-              title="יציאה"
+              className="text-[#b8ceaf] text-xs border border-[#3a4d33] rounded-lg px-3 py-1.5 active:bg-[#3a4d33]"
             >
-              ↩
+              יציאה
             </button>
           </div>
         </div>
@@ -197,9 +198,11 @@ export default function SoldierApp({
             onClick={() => setTab(item.key)}
             className="flex-1 flex flex-col items-center py-2 gap-0.5 active:opacity-70"
           >
-            <span className={`text-xl leading-none w-11 h-8 flex items-center justify-center rounded-xl transition-colors ${
-              tab === item.key ? "bg-[#4b6043]/12" : ""
-            }`}>{item.icon}</span>
+            <span className={`w-11 h-8 flex items-center justify-center rounded-xl transition-colors ${
+              tab === item.key ? "bg-[#4b6043]/12 text-[#4b6043]" : "text-gray-400"
+            }`}>
+              <item.Icon className="w-5 h-5" />
+            </span>
             <span className={`text-[10px] transition-colors ${tab === item.key ? "text-[#4b6043] font-bold" : "text-gray-400"}`}>
               {item.label}
             </span>
