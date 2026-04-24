@@ -89,13 +89,14 @@ export default function LoginPage({
     <div className="flex-1 flex flex-col items-center justify-center p-5 bg-[#f4f2ec]">
       <div className="w-full max-w-sm">
         <div className="text-center mb-7">
-          <div className="w-20 h-20 rounded-2xl bg-white flex items-center justify-center text-5xl mx-auto mb-4 shadow-md border border-[#e5e1d8]">
+          <div className="w-24 h-24 rounded-3xl bg-[#4b6043] flex items-center justify-center text-5xl mx-auto mb-5 shadow-lg">
             🪖
           </div>
-          <h1 className="text-2xl font-bold text-[#2d3a2e] tracking-tight">
-            מערכת ניהול יציאות
+          <div className="text-[10px] tracking-[0.18em] uppercase text-[#4b6043] font-semibold mb-1">מחלקה · תעסוקה 2026</div>
+          <h1 className="text-3xl font-bold text-[#2d3a2e] tracking-tight leading-tight">
+            מערכת ניהול<br />יציאות
           </h1>
-          <p className="text-[#6b7a6b] text-sm mt-1">
+          <p className="text-[#6b7a6b] text-sm mt-2">
             כניסה לחיילים ומפקדים
           </p>
           {(installPrompt || isIos) && (
@@ -114,7 +115,7 @@ export default function LoginPage({
           )}
         </div>
 
-        <div className="bg-white rounded-2xl p-5 shadow-xl border border-[#e5e1d8]">
+        <div className="bg-white rounded-3xl p-5 shadow-2xl border border-[#e5e1d8]">
           <div className="flex bg-gray-100 rounded-xl p-1 mb-5">
             {(["login", "register"] as const).map((t) => (
               <button

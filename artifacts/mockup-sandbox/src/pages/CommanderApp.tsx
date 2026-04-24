@@ -194,41 +194,46 @@ export default function CommanderApp({
     { id: "manage" as const, label: "ניהול", icon: "👥" },
   ];
 
+  const todayDisplay = new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" });
+
   return (
     <div className="flex flex-col h-full bg-[#f4f2ec]">
       {/* Header */}
-      <header className="bg-[#4b6043] text-white px-4 py-3 flex items-center justify-between shrink-0">
-        <div>
-          <div className="font-bold text-base leading-tight">{soldier.name}</div>
-          <div className="text-[#b8ceaf] text-xs">{soldier.pkal}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={async () => {
-              if (pushEnabled) {
-                await unsubscribeFromPush(soldier.name);
-                localStorage.setItem("lm_push_enabled", "false");
-                setPushEnabled(false);
-                toast.info("התראות כובו");
-              } else {
-                const ok = await subscribeToPush(soldier);
-                localStorage.setItem("lm_push_enabled", ok ? "true" : "false");
-                setPushEnabled(ok);
-                if (ok) toast.success("התראות הופעלו");
-                else toast.error("לא ניתן להפעיל התראות");
-              }
-            }}
-            className="text-lg leading-none"
-            title={pushEnabled ? "כבה התראות" : "הפעל התראות"}
-          >
-            {pushEnabled ? "🔔" : "🔕"}
-          </button>
-          <button
-            onClick={onLogout}
-            className="text-[#b8ceaf] text-xs border border-[#3a4d33] rounded-lg px-3 py-1.5"
-          >
-            יציאה
-          </button>
+      <header className="bg-[#4b6043] text-white px-4 pt-4 pb-5 shrink-0">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="text-[10px] tracking-[0.12em] uppercase text-[#7fa873] mb-1 font-medium">מפקד מחלקה</div>
+            <div className="font-bold text-xl leading-tight">{soldier.name}</div>
+            <div className="text-[#b8ceaf] text-xs mt-0.5">{soldier.pkal} · {todayDisplay}</div>
+          </div>
+          <div className="flex items-center gap-3 pt-0.5">
+            <button
+              onClick={async () => {
+                if (pushEnabled) {
+                  await unsubscribeFromPush(soldier.name);
+                  localStorage.setItem("lm_push_enabled", "false");
+                  setPushEnabled(false);
+                  toast.info("התראות כובו");
+                } else {
+                  const ok = await subscribeToPush(soldier);
+                  localStorage.setItem("lm_push_enabled", ok ? "true" : "false");
+                  setPushEnabled(ok);
+                  if (ok) toast.success("התראות הופעלו");
+                  else toast.error("לא ניתן להפעיל התראות");
+                }
+              }}
+              className="text-xl leading-none opacity-80 active:opacity-60"
+            >
+              {pushEnabled ? "🔔" : "🔕"}
+            </button>
+            <button
+              onClick={onLogout}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-[#3a4d33] active:bg-[#2e3d28] text-[#b8ceaf] text-base font-bold"
+              title="יציאה"
+            >
+              ↩
+            </button>
+          </div>
         </div>
       </header>
 
@@ -285,23 +290,18 @@ export default function CommanderApp({
       </main>
 
       {/* Bottom nav */}
-      <nav className="fixed bottom-0 inset-x-0 z-10 bg-white border-t border-gray-200 flex">
+      <nav className="fixed bottom-0 inset-x-0 z-10 bg-white border-t border-gray-100 flex shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 flex flex-col items-center py-2 text-[10px] gap-0.5 transition-colors ${
-              tab === t.id
-                ? "text-[#4b6043] font-semibold"
-                : "text-gray-400"
-            }`}
+            className="flex-1 flex flex-col items-center py-2 gap-0.5 active:opacity-70"
           >
-            <span className="text-lg leading-none">{t.icon}</span>
-            <span className="leading-none">
-              {t.label}
-              {t.id === "requests" && totalPending > 0
-                ? ` (${totalPending})`
-                : ""}
+            <span className={`text-lg leading-none w-10 h-7 flex items-center justify-center rounded-xl transition-colors ${
+              tab === t.id ? "bg-[#4b6043]/12" : ""
+            }`}>{t.icon}</span>
+            <span className={`text-[10px] leading-none transition-colors ${tab === t.id ? "text-[#4b6043] font-bold" : "text-gray-400"}`}>
+              {t.label}{t.id === "requests" && totalPending > 0 ? ` (${totalPending})` : ""}
             </span>
           </button>
         ))}

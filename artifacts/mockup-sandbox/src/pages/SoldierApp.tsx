@@ -124,40 +124,45 @@ export default function SoldierApp({
     { key: "calendar", icon: "📅", label: "לוח" },
   ];
 
+  const todayDisplay = new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" });
+
   return (
     <div className="flex flex-col h-full bg-[#f4f2ec]">
-      <header className="bg-[#4b6043] text-white px-4 py-3 flex items-center justify-between shrink-0">
-        <div>
-          <div className="font-semibold text-sm">{soldier.name}</div>
-          <div className="text-xs text-[#b8ceaf]">{soldier.pkal}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={async () => {
-              if (pushEnabled) {
-                await unsubscribeFromPush(soldier.name);
-                localStorage.setItem("lm_push_enabled", "false");
-                setPushEnabled(false);
-                toast.info("התראות כובו");
-              } else {
-                const ok = await subscribeToPush(soldier);
-                localStorage.setItem("lm_push_enabled", ok ? "true" : "false");
-                setPushEnabled(ok);
-                if (ok) toast.success("התראות הופעלו");
-                else toast.error("לא ניתן להפעיל התראות");
-              }
-            }}
-            className="text-lg leading-none"
-            title={pushEnabled ? "כבה התראות" : "הפעל התראות"}
-          >
-            {pushEnabled ? "🔔" : "🔕"}
-          </button>
-          <button
-            onClick={onLogout}
-            className="text-xs text-[#b8ceaf] px-3 py-1.5 rounded-lg bg-[#3a4d33] active:bg-[#2e3d28]"
-          >
-            יציאה
-          </button>
+      <header className="bg-[#4b6043] text-white px-4 pt-4 pb-5 shrink-0">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="text-[10px] tracking-[0.12em] uppercase text-[#7fa873] mb-1 font-medium">מערכת יציאות</div>
+            <div className="font-bold text-xl leading-tight">{soldier.name}</div>
+            <div className="text-[#b8ceaf] text-xs mt-0.5">{soldier.pkal} · {todayDisplay}</div>
+          </div>
+          <div className="flex items-center gap-3 pt-0.5">
+            <button
+              onClick={async () => {
+                if (pushEnabled) {
+                  await unsubscribeFromPush(soldier.name);
+                  localStorage.setItem("lm_push_enabled", "false");
+                  setPushEnabled(false);
+                  toast.info("התראות כובו");
+                } else {
+                  const ok = await subscribeToPush(soldier);
+                  localStorage.setItem("lm_push_enabled", ok ? "true" : "false");
+                  setPushEnabled(ok);
+                  if (ok) toast.success("התראות הופעלו");
+                  else toast.error("לא ניתן להפעיל התראות");
+                }
+              }}
+              className="text-xl leading-none opacity-80 active:opacity-60"
+            >
+              {pushEnabled ? "🔔" : "🔕"}
+            </button>
+            <button
+              onClick={onLogout}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-[#3a4d33] active:bg-[#2e3d28] text-[#b8ceaf] text-base font-bold"
+              title="יציאה"
+            >
+              ↩
+            </button>
+          </div>
         </div>
       </header>
 
@@ -185,30 +190,22 @@ export default function SoldierApp({
         )}
       </main>
 
-      <nav className="fixed bottom-0 inset-x-0 z-10 bg-white border-t border-gray-200 flex">
+      <nav className="fixed bottom-0 inset-x-0 z-10 bg-white border-t border-gray-100 flex shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
         {navItems.map((item) => (
           <button
             key={item.key}
             onClick={() => setTab(item.key)}
-            className={`flex-1 flex flex-col items-center py-2 gap-0.5 text-xs transition-colors active:bg-gray-50 ${
-              tab === item.key ? "text-[#4b6043]" : "text-gray-400"
-            }`}
+            className="flex-1 flex flex-col items-center py-2 gap-0.5 active:opacity-70"
           >
-            <span className="text-xl leading-none">{item.icon}</span>
-            <span className={tab === item.key ? "font-semibold" : ""}>{item.label}</span>
+            <span className={`text-xl leading-none w-11 h-8 flex items-center justify-center rounded-xl transition-colors ${
+              tab === item.key ? "bg-[#4b6043]/12" : ""
+            }`}>{item.icon}</span>
+            <span className={`text-[10px] transition-colors ${tab === item.key ? "text-[#4b6043] font-bold" : "text-gray-400"}`}>
+              {item.label}
+            </span>
           </button>
         ))}
       </nav>
-    </div>
-  );
-}
-
-function MetricCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm">
-      <div className="text-2xl font-bold text-[#2d3a2e]">{value}</div>
-      <div className="text-sm font-medium text-gray-700 mt-0.5">{label}</div>
-      {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -227,29 +224,41 @@ function HomeTab({
   const today = new Date();
   const todayType = dayType(today);
   const isInDeployment = today >= DEPLOYMENT_START && today <= DEPLOYMENT_END;
+  const isHome = isInDeployment && todayType === "home";
+  const isBase = isInDeployment && todayType === "base";
 
   return (
     <div className="p-4 space-y-4">
-      <h2 className="text-lg font-bold text-[#2d3a2e]">סקירה כללית</h2>
-      <div className="grid grid-cols-2 gap-3">
-        <MetricCard label="בקשות יציאה שאושרו" value={`${daysApproved}`} sub="ימים" />
-        <MetricCard label={countdownLabel} value={`${daysLeft}`} sub="ימים" />
-        <MetricCard label="בקשות שהוגשו" value={`${requestCount}`} />
-        {isInDeployment && (
-          <div className={`bg-white rounded-2xl p-4 shadow-sm border-2 ${todayType === "home" ? "border-green-300" : "border-slate-300"}`}>
-            <div className="text-2xl">{todayType === "home" ? "🏠" : "🛡️"}</div>
-            <div className="text-sm font-medium text-gray-700 mt-0.5">היום אתה</div>
-            <div className={`text-xs font-semibold mt-0.5 ${todayType === "home" ? "text-green-600" : "text-slate-600"}`}>
-              {todayType === "home" ? "בבית" : "בבסיס"}
-            </div>
-          </div>
-        )}
+      {/* Hero status */}
+      <div className={`rounded-2xl p-5 ${isHome ? "bg-green-600" : isBase ? "bg-[#4b6043]" : "bg-gray-500"} text-white shadow-md`}>
+        <div className="text-3xl mb-2">{isHome ? "🏠" : "🛡️"}</div>
+        <div className="text-2xl font-bold leading-tight">
+          {isHome ? "היום אתה בבית" : isBase ? "היום אתה בבסיס" : "מחוץ לתעסוקה"}
+        </div>
+        <div className="text-white/70 text-sm mt-1">
+          {isInDeployment ? `נותרו ${daysLeft} ימים לסיום` : countdownLabel}
+        </div>
       </div>
 
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-        <p className="text-sm font-semibold text-amber-800 mb-1">🗓 תקופת תעסוקה</p>
-        <p className="text-xs text-amber-700">26.04.2026 – 13.07.2026</p>
-        <p className="text-xs text-amber-600 mt-1">8 ימים בבסיס → 6 ימים בבית → חוזר</p>
+      {/* Metrics grid */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <div className="text-3xl font-bold text-[#4b6043]">{daysApproved}</div>
+          <div className="text-xs font-medium text-gray-500 mt-1">ימי יציאה שאושרו</div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <div className="text-3xl font-bold text-[#2d3a2e]">{daysLeft}</div>
+          <div className="text-xs font-medium text-gray-500 mt-1">{countdownLabel}</div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <div className="text-3xl font-bold text-[#2d3a2e]">{requestCount}</div>
+          <div className="text-xs font-medium text-gray-500 mt-1">בקשות שהוגשו</div>
+        </div>
+        <div className="bg-[#4b6043]/8 rounded-2xl p-4 border border-[#4b6043]/20">
+          <div className="text-2xl mb-1">🗓</div>
+          <div className="text-xs font-semibold text-[#4b6043]">26.04 – 13.07</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">8 בסיס · 6 בית</div>
+        </div>
       </div>
     </div>
   );
