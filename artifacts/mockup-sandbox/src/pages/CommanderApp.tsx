@@ -3,6 +3,7 @@ import type { Soldier, LeaveRequest, Swap, AppNotification } from "../lib/types"
 import { api } from "../lib/api";
 import { toast } from "sonner";
 import { countLeaveDays } from "./SoldierApp";
+import { subscribeToPush, unsubscribeFromPush } from "../lib/pushUtils";
 
 const STATUS_LABEL: Record<string, string> = {
   Pending: "ממתין",
@@ -58,6 +59,9 @@ export default function CommanderApp({
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pushEnabled, setPushEnabled] = useState(
+    () => localStorage.getItem("lm_push_enabled") !== "false",
+  );
   const [noteMap, setNoteMap] = useState<Record<number, string>>({});
   const [calMonth, setCalMonth] = useState(4);
 
@@ -198,12 +202,34 @@ export default function CommanderApp({
           <div className="font-bold text-base leading-tight">{soldier.name}</div>
           <div className="text-[#b8ceaf] text-xs">{soldier.pkal}</div>
         </div>
-        <button
-          onClick={onLogout}
-          className="text-[#b8ceaf] text-xs border border-[#3a4d33] rounded-lg px-3 py-1.5"
-        >
-          יציאה
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              if (pushEnabled) {
+                await unsubscribeFromPush(soldier.name);
+                localStorage.setItem("lm_push_enabled", "false");
+                setPushEnabled(false);
+                toast.info("התראות כובו");
+              } else {
+                const ok = await subscribeToPush(soldier);
+                localStorage.setItem("lm_push_enabled", ok ? "true" : "false");
+                setPushEnabled(ok);
+                if (ok) toast.success("התראות הופעלו");
+                else toast.error("לא ניתן להפעיל התראות");
+              }
+            }}
+            className="text-lg leading-none"
+            title={pushEnabled ? "כבה התראות" : "הפעל התראות"}
+          >
+            {pushEnabled ? "🔔" : "🔕"}
+          </button>
+          <button
+            onClick={onLogout}
+            className="text-[#b8ceaf] text-xs border border-[#3a4d33] rounded-lg px-3 py-1.5"
+          >
+            יציאה
+          </button>
+        </div>
       </header>
 
       {/* Body */}
