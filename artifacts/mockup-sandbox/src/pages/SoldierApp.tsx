@@ -88,10 +88,10 @@ export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; on
 
   if (todayMidnight < DEPLOYMENT_START) {
     daysLeft = Math.round((DEPLOYMENT_START.getTime() - todayMidnight.getTime()) / 86400000);
-    countdownLabel = "לתחילת התעסוקה";
+    countdownLabel = "ימים לתחילת התעסוקה";
   } else if (todayMidnight <= DEPLOYMENT_END) {
     daysLeft = Math.round((DEPLOYMENT_END.getTime() - todayMidnight.getTime()) / 86400000);
-    countdownLabel = "ימים לסיום";
+    countdownLabel = "ימים לסיום התעסוקה";
   } else {
     daysLeft = 0;
     countdownLabel = "התעסוקה הסתיימה";
@@ -236,7 +236,7 @@ function RequestsTab({ soldier, requests, swaps, onRefresh }: any) {
   return (
     <div className="space-y-6">
       <div className="flex bg-gray-100/80 p-1.5 rounded-2xl">
-        {([ { key: "new", label: "חדשה" }, { key: "history", label: "שלי" }, { key: "swap", label: "החלפה" } ] as const).map((t) => (
+        {([ { key: "new", label: "בקשה חדשה" }, { key: "history", label: "הבקשות שלי" }, { key: "swap", label: "החלפה" } ] as const).map((t) => (
           <button key={t.key} onClick={() => setView(t.key)} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${view === t.key ? "bg-white shadow-sm text-[#4b6043]" : "text-gray-400"}`}>
             {t.label}
           </button>
@@ -355,7 +355,7 @@ function CalendarTab({ soldier, requests, swaps }: any) {
     <div className="space-y-6 pb-6">
       <div className="flex items-center gap-4 text-[10px] font-bold text-gray-400 flex-wrap uppercase tracking-wider justify-center">
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-400" />בית</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />חופש</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />בקשת יציאה</span>
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-400" />החלפה</span>
       </div>
 
