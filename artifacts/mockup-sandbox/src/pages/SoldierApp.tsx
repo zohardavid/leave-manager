@@ -5,23 +5,18 @@ import { toast } from "sonner";
 import { subscribeToPush, unsubscribeFromPush } from "../lib/pushUtils";
 import { IconHome, IconClipboard, IconCalendar, IconBell, IconBellSlash } from "../lib/icons";
 
-// --- קבועים לחישובים ---
+// --- לוגיקה וקבועים ---
 const DEPLOYMENT_START = new Date(2026, 3, 26);
 const DEPLOYMENT_END = new Date(2026, 6, 13);
 const CYCLE_BASE = 8;
 const CYCLE_HOME = 6;
 const CYCLE_LENGTH = CYCLE_BASE + CYCLE_HOME;
 
-// --- פונקציות עזר ---
 function dayType(d: Date): "home" | "base" {
   if (d < DEPLOYMENT_START || d > DEPLOYMENT_END) return "base";
   const diff = Math.floor((d.getTime() - DEPLOYMENT_START.getTime()) / 86400000);
   const pos = diff % CYCLE_LENGTH;
   return pos < CYCLE_BASE ? "base" : "home";
-}
-
-function diffDays(a: string, b: string) {
-  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000) + 1;
 }
 
 export function countLeaveDays(startDate: string, endDate: string, departureTime?: string, returnTime?: string): number {
@@ -36,12 +31,7 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  Pending: "ממתינה 🟡",
-  Approved: "אושרה ✅",
-  Denied: "נדחתה ❌",
-};
-
+const STATUS_LABEL: Record<string, string> = { Pending: "ממתינה 🟡", Approved: "אושרה ✅", Denied: "נדחתה ❌" };
 const STATUS_COLOR: Record<string, string> = {
   Pending: "bg-yellow-50/50 border-yellow-100 text-yellow-700",
   Approved: "bg-green-50/50 border-green-100 text-green-700",
@@ -72,125 +62,82 @@ const inputCls = "w-full border-0 bg-gray-100/50 rounded-2xl px-4 py-3.5 text-ba
 
 type Tab = "home" | "requests" | "calendar";
 
-export default function SoldierApp({
-  soldier,
-  onLogout,
-}: {
-  soldier: Soldier;
-  onLogout: () => void;
-}) {
+export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; onLogout: () => void; }) {
   const [tab, setTab] = useState<Tab>("home");
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
-  const [allRequests, setAllRequests] = useState<LeaveRequest[]>([]);
   const [swaps, setSwaps] = useState<Swap[]>([]);
-  const [soldiers, setSoldiers] = useState<Soldier[]>([]);
-  const [pushEnabled, setPushEnabled] = useState(
-    () => localStorage.getItem("lm_push_enabled") !== "false",
-  );
+  const [pushEnabled, setPushEnabled] = useState(() => localStorage.getItem("lm_push_enabled") !== "false");
 
   const load = useCallback(async () => {
     try {
-      const [myReqs, allReqs, swps, sols] = await Promise.all([
-        api.getRequests(soldier.name),
-        api.getRequests(),
-        api.getSwaps(),
-        api.getSoldiers(),
-      ]);
+      const [myReqs, swps] = await Promise.all([api.getRequests(soldier.name), api.getSwaps()]);
       setRequests(myReqs);
-      setAllRequests(allReqs);
       setSwaps(swps);
-      setSoldiers(sols.filter((s) => s.name !== soldier.name));
     } catch { /* silent */ }
   }, [soldier.name]);
 
   useEffect(() => { void load(); }, [load]);
 
-  const daysApproved = requests
-    .filter((r) => r.status === "Approved")
-    .reduce((sum, r) => sum + countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time), 0);
+  const daysApproved = requests.filter((r) => r.status === "Approved").reduce((sum, r) => sum + countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time), 0);
+  
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
 
-  const today = new Date();
-  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const daysLeft =
-    todayMidnight < DEPLOYMENT_START
-      ? Math.round((DEPLOYMENT_START.getTime() - todayMidnight.getTime()) / 86400000)
-      : todayMidnight <= DEPLOYMENT_END
-        ? Math.round((DEPLOYMENT_END.getTime() - todayMidnight.getTime()) / 86400000)
-        : 0;
+  let daysLeft = 0;
+  let countdownLabel = "לסיום התעסוקה";
+
+  if (todayMidnight < DEPLOYMENT_START) {
+    daysLeft = Math.round((DEPLOYMENT_START.getTime() - todayMidnight.getTime()) / 86400000);
+    countdownLabel = "לתחילת התעסוקה";
+  } else if (todayMidnight <= DEPLOYMENT_END) {
+    daysLeft = Math.round((DEPLOYMENT_END.getTime() - todayMidnight.getTime()) / 86400000);
+    countdownLabel = "ימים לסיום";
+  } else {
+    daysLeft = 0;
+    countdownLabel = "התעסוקה הסתיימה";
+  }
+
+  const todayDisplay = new Date().toLocaleDateString("he-IL", { day: "numeric", month: "long" });
 
   const navItems: { key: Tab; label: string; Icon: React.FC<{ className?: string }> }[] = [
     { key: "home", label: "בית", Icon: IconHome },
-    { key: "requests", label: "בקשות", Icon: IconClipboard },
-    { key: "calendar", label: "לוח", Icon: IconCalendar },
+    { key: "requests", label: "בקשות יציאה", Icon: IconClipboard },
+    { key: "calendar", label: "לוח שנה", Icon: IconCalendar },
   ];
 
   return (
     <div className="flex flex-col h-full bg-[#fdfcf9] overflow-hidden">
-      {/* Header מינימליסטי וצר */}
       <header className="bg-[#4b6043] text-white px-6 py-4 shrink-0 flex items-center justify-between z-30 shadow-sm">
         <div className="font-black text-xl tracking-tight">{soldier.name}</div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={async () => {
-              if (pushEnabled) {
-                await unsubscribeFromPush(soldier.name);
-                localStorage.setItem("lm_push_enabled", "false");
-                setPushEnabled(false);
-                toast.info("התראות כובו");
-              } else {
-                const result = await subscribeToPush(soldier);
-                localStorage.setItem("lm_push_enabled", result.ok ? "true" : "false");
-                setPushEnabled(result.ok);
-                if (result.ok) toast.success("התראות הופעלו");
-                else toast.error("שגיאה בהפעלת התראות");
-              }
-            }}
-            className="w-9 h-9 flex items-center justify-center bg-white/10 rounded-xl active:scale-90 transition-all"
-          >
-            {pushEnabled ? <IconBell className="w-4 h-4 text-white" /> : <IconBellSlash className="w-4 h-4 text-white/50" />}
+          <button onClick={async () => {
+            if (pushEnabled) { await unsubscribeFromPush(soldier.name); setPushEnabled(false); localStorage.setItem("lm_push_enabled", "false"); }
+            else { const r = await subscribeToPush(soldier); setPushEnabled(r.ok); localStorage.setItem("lm_push_enabled", r.ok ? "true" : "false"); }
+          }} className="w-9 h-9 flex items-center justify-center bg-white/10 rounded-xl">
+            {pushEnabled ? <IconBell className="w-4 h-4" /> : <IconBellSlash className="w-4 h-4 opacity-50" />}
           </button>
-          <button
-            onClick={onLogout}
-            className="text-[10px] font-bold bg-white/10 px-3 py-2 rounded-xl border border-white/5 active:bg-white/20 transition-all uppercase"
-          >
-            יציאה
-          </button>
+          <button onClick={onLogout} className="text-[10px] font-bold bg-white/10 px-3 py-2 rounded-xl border border-white/5 uppercase">יציאה</button>
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto px-6 pt-6 pb-32">
         {tab === "home" && (
-          <HomeTab
-            soldier={soldier}
-            daysApproved={daysApproved}
-            daysLeft={daysLeft}
-            requestCount={requests.length}
-          />
+          <HomeTab soldier={soldier} daysApproved={daysApproved} daysLeft={daysLeft} requestCount={requests.length} todayDisplay={todayDisplay} countdownLabel={countdownLabel} />
         )}
+
         {tab === "requests" && (
-          <RequestsTab
-            soldier={soldier}
-            requests={requests}
-            swaps={swaps}
-            onRefresh={load}
-          />
+          <RequestsTab soldier={soldier} requests={requests} swaps={swaps} onRefresh={load} />
         )}
+
         {tab === "calendar" && (
           <CalendarTab soldier={soldier} requests={requests} swaps={swaps} />
         )}
       </main>
 
-      {/* Nav תחתון צף */}
       <nav className="fixed bottom-6 inset-x-6 z-40 bg-white/95 backdrop-blur-md border border-gray-100 rounded-[2rem] flex shadow-xl p-2">
         {navItems.map((item) => (
-          <button
-            key={item.key}
-            onClick={() => setTab(item.key)}
-            className="flex-1 flex flex-col items-center py-2 transition-all"
-          >
-            <span className={`w-12 h-9 flex items-center justify-center rounded-2xl transition-all ${
-              tab === item.key ? "bg-[#4b6043] text-white shadow-lg shadow-[#4b6043]/20" : "text-gray-400"
-            }`}>
+          <button key={item.key} onClick={() => setTab(item.key)} className={`flex-1 flex flex-col items-center py-2 transition-all`}>
+            <span className={`w-12 h-9 flex items-center justify-center rounded-2xl transition-all ${tab === item.key ? "bg-[#4b6043] text-white shadow-lg shadow-[#4b6043]/20" : "text-gray-400"}`}>
               <item.Icon className="w-5 h-5" />
             </span>
           </button>
@@ -200,23 +147,9 @@ export default function SoldierApp({
   );
 }
 
-function HomeTab({
-  soldier,
-  daysApproved,
-  daysLeft,
-  requestCount,
-}: {
-  soldier: Soldier;
-  daysApproved: number;
-  daysLeft: number;
-  requestCount: number;
-}) {
-  const today = new Date();
-  const todayDisplay = today.toLocaleDateString("he-IL", { day: "numeric", month: "long" });
-
+function HomeTab({ soldier, daysApproved, daysLeft, requestCount, todayDisplay, countdownLabel }: any) {
   return (
     <div className="flex flex-col gap-4">
-      {/* כרטיס מידע אישי */}
       <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-white flex justify-between items-center">
         <div>
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">תפקיד</div>
@@ -230,37 +163,32 @@ function HomeTab({
 
       <div className="bg-[#2d3a2e] rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden text-white">
         <div className="text-6xl font-black leading-none">{daysLeft}</div>
-        <div className="text-lg font-bold opacity-40 mt-2 text-right">ימים לסיום</div>
+        <div className="text-lg font-bold opacity-40 mt-2 text-right">{countdownLabel}</div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-white">
+        <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-white">
           <div className="text-3xl font-black text-[#4b6043]">{daysApproved}</div>
           <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-2">ימי חופש</div>
         </div>
-        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-white">
+        <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-white">
           <div className="text-3xl font-black text-[#2d3a2e]">{requestCount}</div>
-          <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-2">בקשות</div>
+          <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-2">בקשות הוגשו</div>
         </div>
       </div>
     </div>
   );
 }
 
-function RequestsTab({
-  soldier,
-  requests,
-  swaps,
-  onRefresh,
-}: {
-  soldier: Soldier;
-  requests: LeaveRequest[];
-  swaps: Swap[];
-  onRefresh: () => Promise<void>;
-}) {
+function RequestsTab({ soldier, requests, swaps, onRefresh }: any) {
   const [view, setView] = useState<"new" | "history" | "swap">("new");
   const [startDate, setStartDate] = useState(todayStr());
   const [endDate, setEndDate] = useState(todayStr());
+  
+  // --- הוספת השדות לשעות ---
+  const [departureTime, setDepartureTime] = useState("");
+  const [returnTime, setReturnTime] = useState("");
+  
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -268,22 +196,21 @@ function RequestsTab({
   const [swapStart, setSwapStart] = useState("2026-04-26");
   const [swapEnd, setSwapEnd] = useState("2026-04-26");
 
-  const mySwaps = swaps.filter((s) => s.requester === soldier.name);
+  const mySwaps = swaps.filter((s: any) => s.requester === soldier.name);
 
   const submitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.createRequest({ soldier_name: soldier.name, start_date: startDate, end_date: endDate, reason });
+      // עדכון ה-API לקבל גם את השעות
+      await api.createRequest({ soldier_name: soldier.name, start_date: startDate, end_date: endDate, departure_time: departureTime, return_time: returnTime, reason });
       toast.success("✅ בקשה הוגשה בהצלחה!");
       setReason("");
+      setDepartureTime("");
+      setReturnTime("");
       await onRefresh();
       setView("history");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "שגיאה");
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { toast.error("שגיאה בהגשת בקשה"); } finally { setLoading(false); }
   };
 
   const handleDelete = async (id: number) => {
@@ -292,9 +219,7 @@ function RequestsTab({
       await api.deleteRequest(id);
       toast.success("הבקשה נמחקה");
       await onRefresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "שגיאה");
-    }
+    } catch (err) { toast.error("שגיאה במחיקה"); }
   };
 
   const submitSwap = async (e: React.FormEvent) => {
@@ -305,28 +230,14 @@ function RequestsTab({
       await api.createSwap({ requester: soldier.name, partner: swapPartner, start_date: swapStart, end_date: swapEnd });
       toast.success("✅ בקשת החלפה נשלחה!");
       await onRefresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "שגיאה");
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { toast.error("שגיאה בשליחת החלפה"); } finally { setLoading(false); }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex bg-gray-100/80 p-1.5 rounded-2xl">
-        {([
-          { key: "new", label: "חדשה" },
-          { key: "history", label: "שלי" },
-          { key: "swap", label: "החלפה" },
-        ] as const).map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setView(t.key)}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-              view === t.key ? "bg-white shadow-sm text-[#4b6043]" : "text-gray-400"
-            }`}
-          >
+        {([ { key: "new", label: "חדשה" }, { key: "history", label: "שלי" }, { key: "swap", label: "החלפה" } ] as const).map((t) => (
+          <button key={t.key} onClick={() => setView(t.key)} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${view === t.key ? "bg-white shadow-sm text-[#4b6043]" : "text-gray-400"}`}>
             {t.label}
           </button>
         ))}
@@ -335,6 +246,7 @@ function RequestsTab({
       {view === "new" && (
         <form onSubmit={submitRequest} className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-white space-y-5">
           <h3 className="font-extrabold text-[#2d3a2e] text-lg">בקשת יציאה חדשה</h3>
+          
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 mr-1">מתאריך</label>
@@ -345,15 +257,22 @@ function RequestsTab({
               <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate} className={inputCls} required />
             </div>
           </div>
+          
+          {/* הוספת שדות שעות */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 mr-1">שעת יציאה</label>
+              <input type="time" value={departureTime} onChange={(e) => setDepartureTime(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 mr-1">שעת חזרה</label>
+              <input type="time" value={returnTime} onChange={(e) => setReturnTime(e.target.value)} className={inputCls} />
+            </div>
+          </div>
+
           <div>
             <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 mr-1">סיבה</label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="פרט את סיבת היציאה..."
-              className={`${inputCls} resize-none h-24`}
-              required
-            />
+            <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="פרט את סיבת היציאה..." className={`${inputCls} resize-none h-24`} required />
           </div>
           <button type="submit" disabled={loading} className="w-full bg-[#4b6043] text-white py-4 rounded-2xl font-bold shadow-lg shadow-[#4b6043]/20 active:scale-[0.98] transition-all">
             {loading ? "שולח..." : "הגש בקשה"}
@@ -363,16 +282,19 @@ function RequestsTab({
 
       {view === "history" && (
         <div className="space-y-4">
-          {requests.length === 0 ? (
-            <div className="text-center text-gray-300 py-10 font-medium">אין בקשות עדיין</div>
-          ) : (
+          {requests.length === 0 ? <div className="text-center text-gray-300 py-10 font-medium">אין בקשות עדיין</div> : (
             [...requests].sort((a, b) => b.submitted_at.localeCompare(a.submitted_at)).map((r) => (
               <div key={r.id} className={`rounded-[2rem] border p-6 bg-white shadow-sm relative ${STATUS_COLOR[r.status]}`}>
                 <div className="flex justify-between items-start mb-2">
                   <div className="text-sm font-black tracking-tight">{r.start_date} ← {r.end_date}</div>
                   <div className="text-[10px] font-black uppercase tracking-widest">{STATUS_LABEL[r.status]}</div>
                 </div>
-                <div className="text-[10px] font-bold opacity-60 mb-3">{r.reason}</div>
+                {/* הצגת השעות במידה והוזנו */}
+                <div className="text-[10px] font-bold opacity-60 mb-3">
+                  {r.departure_time ? `יציאה ב-${r.departure_time} • ` : ""}
+                  {r.return_time ? `חזרה ב-${r.return_time} • ` : ""}
+                  {r.reason}
+                </div>
                 <button onClick={() => handleDelete(r.id)} className="w-full text-[10px] font-black uppercase tracking-widest border border-red-200 text-red-500 py-2 rounded-xl hover:bg-red-50 transition-colors">מחק בקשה</button>
               </div>
             ))
@@ -402,16 +324,12 @@ function RequestsTab({
               {loading ? "שולח..." : "שלח בקשת החלפה"}
             </button>
           </form>
-
           {mySwaps.length > 0 && (
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-gray-400 px-2">בקשות ההחלפה שלי</h4>
-              {mySwaps.map((sw) => (
+              {mySwaps.map((sw: any) => (
                 <div key={sw.id} className={`rounded-2xl border p-4 ${STATUS_COLOR[sw.status]}`}>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-black">עם {sw.partner}</span>
-                    <span className="text-[10px] font-bold">{STATUS_LABEL[sw.status]}</span>
-                  </div>
+                  <div className="flex justify-between items-center"><span className="text-sm font-black">עם {sw.partner}</span><span className="text-[10px] font-bold">{STATUS_LABEL[sw.status]}</span></div>
                   <div className="text-[10px] font-bold opacity-60 mt-1">{sw.start_date} ← {sw.end_date}</div>
                 </div>
               ))}
@@ -423,27 +341,13 @@ function RequestsTab({
   );
 }
 
-function CalendarTab({
-  soldier,
-  requests,
-  swaps,
-}: {
-  soldier: Soldier;
-  requests: LeaveRequest[];
-  swaps: Swap[];
-}) {
-  const approvedRequests = requests.filter((r) => r.status === "Approved");
-  const approvedSwaps = swaps.filter(
-    (s) => s.status === "Approved" && (s.requester === soldier.name || s.partner === soldier.name),
-  );
+function CalendarTab({ soldier, requests, swaps }: any) {
+  const approvedRequests = requests.filter((r: any) => r.status === "Approved");
+  const approvedSwaps = swaps.filter((s: any) => s.status === "Approved" && (s.requester === soldier.name || s.partner === soldier.name));
 
   const classify = (dateStr: string): "leave" | "swap" | "home" | "base" => {
-    for (const sw of approvedSwaps) {
-      if (dateStr >= sw.start_date && dateStr <= sw.end_date) return "swap";
-    }
-    for (const r of approvedRequests) {
-      if (dateStr >= r.start_date && dateStr <= r.end_date) return "leave";
-    }
+    for (const sw of approvedSwaps) { if (dateStr >= sw.start_date && dateStr <= sw.end_date) return "swap"; }
+    for (const r of approvedRequests) { if (dateStr >= r.start_date && dateStr <= r.end_date) return "leave"; }
     return dayType(new Date(dateStr));
   };
 
@@ -460,11 +364,7 @@ function CalendarTab({
         return (
           <div key={month} className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-white">
             <h3 className="font-black text-[#2d3a2e] mb-4 text-center">{MONTH_NAMES[month]} 2026</h3>
-            <div className="grid grid-cols-7 mb-2">
-              {DAY_HEADERS.map((h) => (
-                <div key={h} className="text-center text-[10px] text-gray-300 font-black py-1">{h}</div>
-              ))}
-            </div>
+            <div className="grid grid-cols-7 mb-2">{DAY_HEADERS.map((h) => (<div key={h} className="text-center text-[10px] text-gray-300 font-black py-1">{h}</div>))}</div>
             <div className="grid grid-cols-7 gap-1">
               {weeks.map((week, wi) => (
                 week.map((day, di) => {
@@ -472,18 +372,8 @@ function CalendarTab({
                   const dateStr = `2026-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                   const inRange = dateStr >= "2026-04-26" && dateStr <= "2026-07-13";
                   const cat = classify(dateStr);
-                  
-                  if (!inRange) return (
-                    <div key={dateStr} className="aspect-square rounded-xl flex items-center justify-center text-[11px] text-gray-200 font-bold">{day}</div>
-                  );
-
-                  const styles = { 
-                    home: "bg-green-50 text-green-600", 
-                    leave: "bg-yellow-50 text-yellow-600", 
-                    swap: "bg-blue-50 text-blue-600", 
-                    base: "text-gray-300 bg-gray-50/50" 
-                  }[cat];
-                  
+                  if (!inRange) return (<div key={dateStr} className="aspect-square rounded-xl flex items-center justify-center text-[11px] text-gray-200 font-bold">{day}</div>);
+                  const styles = { home: "bg-green-50 text-green-600", leave: "bg-yellow-50 text-yellow-600", swap: "bg-blue-50 text-blue-600", base: "text-gray-300 bg-gray-50/50" }[cat];
                   return (
                     <div key={dateStr} className={`aspect-square rounded-xl flex flex-col items-center justify-center text-[11px] font-black transition-all ${styles}`}>
                       {day}
