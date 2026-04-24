@@ -32,4 +32,14 @@ router.post("/subscribe", async (req, res) => {
   res.status(201).end();
 });
 
+router.delete("/subscribe", async (req, res) => {
+  const { soldier_name } = req.body as { soldier_name?: string };
+  if (!soldier_name) {
+    res.status(400).json({ error: "Missing soldier_name" });
+    return;
+  }
+  await query("DELETE FROM subscriptions WHERE soldier_name = $1", [soldier_name]);
+  res.status(204).end();
+});
+
 export default router;

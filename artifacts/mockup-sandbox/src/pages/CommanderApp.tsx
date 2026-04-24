@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import type { Soldier, LeaveRequest, Swap } from "../lib/types";
+import type { Soldier, LeaveRequest, Swap, AppNotification } from "../lib/types";
 import { api } from "../lib/api";
 import { toast } from "sonner";
+import { countLeaveDays } from "./SoldierApp";
 
 const STATUS_LABEL: Record<string, string> = {
   Pending: "ממתין",
@@ -49,12 +50,13 @@ export default function CommanderApp({
   soldier: Soldier;
   onLogout: () => void;
 }) {
-  const [tab, setTab] = useState<"requests" | "calendar" | "soldiers" | "manage">(
+  const [tab, setTab] = useState<"requests" | "calendar" | "soldiers" | "manage" | "notifications">(
     "requests",
   );
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [swaps, setSwaps] = useState<Swap[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [noteMap, setNoteMap] = useState<Record<number, string>>({});
   const [calMonth, setCalMonth] = useState(4);
@@ -62,14 +64,16 @@ export default function CommanderApp({
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [r, sw, s] = await Promise.all([
+      const [r, sw, s, n] = await Promise.all([
         api.getRequests(),
         api.getSwaps(),
         api.getSoldiers(),
+        api.getNotifications(),
       ]);
       setRequests(r);
       setSwaps(sw);
       setSoldiers(s);
+      setNotifications(n);
     } catch {
       toast.error("שגיאה בטעינת נתונים");
     } finally {
@@ -99,12 +103,49 @@ export default function CommanderApp({
     }
   };
 
+  const handleEdit = async (
+    id: number,
+    data: { start_date: string; end_date: string; reason: string; departure_time?: string; return_time?: string },
+  ) => {
+    try {
+      const updated = await api.editRequest(id, data);
+      setRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
+      toast.success("הבקשה עודכנה");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "שגיאה");
+    }
+  };
+
   const handleDelete = async (name: string) => {
     if (!confirm(`למחוק את ${name}?`)) return;
     try {
       await api.deleteSoldier(name);
       setSoldiers((prev) => prev.filter((s) => s.name !== name));
       toast.success("חייל נמחק");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "שגיאה");
+    }
+  };
+
+  const handleUpdateSoldier = async (
+    oldName: string,
+    data: { name?: string; pkal?: string; password?: string },
+  ) => {
+    try {
+      const updated = await api.updateSoldier(oldName, data);
+      setSoldiers((prev) => prev.map((s) => (s.name === oldName ? updated : s)));
+      toast.success("פרופיל עודכן");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "שגיאה");
+    }
+  };
+
+  const handleSendNotification = async (data: { target: string; title: string; body: string }) => {
+    try {
+      await api.sendNotification(data);
+      const updated = await api.getNotifications();
+      setNotifications(updated);
+      toast.success("התראה נשלחה");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "שגיאה");
     }
@@ -137,15 +178,7 @@ export default function CommanderApp({
     const myRequests = requests.filter(
       (r) => r.soldier_name === s.name && r.status === "Approved",
     );
-    const days = myRequests.reduce((acc, r) => {
-      const start = new Date(r.start_date);
-      const end = new Date(r.end_date);
-      return (
-        acc +
-        Math.round((end.getTime() - start.getTime()) / 86400000) +
-        1
-      );
-    }, 0);
+    const days = myRequests.reduce((acc, r) => acc + countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time), 0);
     return { ...s, days };
   });
 
@@ -153,6 +186,7 @@ export default function CommanderApp({
     { id: "requests" as const, label: "בקשות", icon: "📋" },
     { id: "calendar" as const, label: "לוח", icon: "📅" },
     { id: "soldiers" as const, label: "חיילים", icon: "📊" },
+    { id: "notifications" as const, label: "התראות", icon: "🔔" },
     { id: "manage" as const, label: "ניהול", icon: "👥" },
   ];
 
@@ -200,11 +234,24 @@ export default function CommanderApp({
                 onLeaveOnDay={onLeaveOnDay}
                 soldiers={soldiers}
                 requests={requests}
+                onRequest={handleRequest}
+                onEdit={handleEdit}
               />
             )}
             {tab === "soldiers" && <SoldiersTab stats={soldierStats} />}
+            {tab === "notifications" && (
+              <NotificationsTab
+                notifications={notifications}
+                soldiers={soldiers}
+                onSend={handleSendNotification}
+              />
+            )}
             {tab === "manage" && (
-              <ManageTab soldiers={soldiers} onDelete={handleDelete} />
+              <ManageTab
+                soldiers={soldiers}
+                onDelete={handleDelete}
+                onUpdate={handleUpdateSoldier}
+              />
             )}
           </>
         )}
@@ -216,13 +263,13 @@ export default function CommanderApp({
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 flex flex-col items-center py-2.5 text-xs gap-0.5 transition-colors ${
+            className={`flex-1 flex flex-col items-center py-2 text-[10px] gap-0.5 transition-colors ${
               tab === t.id
                 ? "text-[#4b6043] font-semibold"
                 : "text-gray-400"
             }`}
           >
-            <span className="text-xl leading-none">{t.icon}</span>
+            <span className="text-lg leading-none">{t.icon}</span>
             <span className="leading-none">
               {t.label}
               {t.id === "requests" && totalPending > 0
@@ -296,7 +343,15 @@ function RequestsTab({
                         <div className="font-semibold">{r.soldier_name}</div>
                         <div className="text-sm text-gray-500">
                           {fmt(r.start_date)} – {fmt(r.end_date)}
+                          {" "}({countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time)} ימים)
                         </div>
+                        {(r.departure_time || r.return_time) && (
+                          <div className="text-xs text-gray-400 mt-0.5">
+                            {r.departure_time ? `יציאה ${r.departure_time}` : ""}
+                            {r.departure_time && r.return_time ? " · " : ""}
+                            {r.return_time ? `חזרה ${r.return_time}` : ""}
+                          </div>
+                        )}
                         <div className="text-sm text-gray-600 mt-1">
                           {r.reason}
                         </div>
@@ -418,7 +473,10 @@ function RequestsTab({
                     </div>
                   </div>
                   <div className="text-xs text-gray-500 mt-0.5">
-                    {fmt(r.start_date)} – {fmt(r.end_date)} · {r.reason}
+                    {fmt(r.start_date)} – {fmt(r.end_date)} ({countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time)} ימים)
+                    {r.departure_time ? ` · יציאה ${r.departure_time}` : ""}
+                    {r.return_time ? ` · חזרה ${r.return_time}` : ""}
+                    {" · "}{r.reason}
                   </div>
                   {r.commander_note && (
                     <div className="text-xs text-gray-400 mt-1 italic">
@@ -443,6 +501,8 @@ function CalendarTab({
   firstDay,
   soldiers,
   requests,
+  onRequest,
+  onEdit,
 }: {
   calMonth: number;
   setCalMonth: (m: number) => void;
@@ -451,6 +511,8 @@ function CalendarTab({
   onLeaveOnDay: (day: number) => string[];
   soldiers: Soldier[];
   requests: LeaveRequest[];
+  onRequest: (id: number, status: "Approved" | "Denied") => Promise<void>;
+  onEdit: (id: number, data: { start_date: string; end_date: string; reason: string; departure_time?: string; return_time?: string }) => Promise<void>;
 }) {
   const MONTHS = ["", "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי"];
   const DAYS_HE = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
@@ -463,6 +525,8 @@ function CalendarTab({
     return null;
   });
   const [focusedLeave, setFocusedLeave] = useState<LeaveRequest | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editData, setEditData] = useState({ start_date: "", end_date: "", reason: "", departure_time: "", return_time: "" });
 
   const firstDayOfMonth = firstDay(calMonth);
   const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
@@ -502,13 +566,13 @@ function CalendarTab({
       {/* Month nav */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => { setCalMonth(Math.max(4, calMonth - 1)); setSelectedDay(null); setFocusedLeave(null); }}
+          onClick={() => { setCalMonth(Math.max(4, calMonth - 1)); setSelectedDay(null); setFocusedLeave(null); setEditMode(false); }}
           className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600"
           disabled={calMonth <= 4}
         >▶</button>
         <span className="font-semibold text-gray-800">{MONTHS[calMonth]} 2026</span>
         <button
-          onClick={() => { setCalMonth(Math.min(7, calMonth + 1)); setSelectedDay(null); setFocusedLeave(null); }}
+          onClick={() => { setCalMonth(Math.min(7, calMonth + 1)); setSelectedDay(null); setFocusedLeave(null); setEditMode(false); }}
           className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600"
           disabled={calMonth >= 7}
         >◀</button>
@@ -527,7 +591,7 @@ function CalendarTab({
           return (
             <button
               key={day}
-              onClick={() => { setSelectedDay(isSelected ? null : day); setFocusedLeave(null); }}
+              onClick={() => { setSelectedDay(isSelected ? null : day); setFocusedLeave(null); setEditMode(false); }}
               className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-medium transition-colors ${cellColor(day, isSelected)}`}
             >
               <span>{day}</span>
@@ -611,10 +675,103 @@ function CalendarTab({
             )}
 
             {focusedLeave && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
-                <span className="font-semibold">{focusedLeave.soldier_name}</span>
-                {" — "}{focusedLeave.reason}
-                <span className="text-amber-600 mr-1"> ({fmt(focusedLeave.start_date)}–{fmt(focusedLeave.end_date)})</span>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                {editMode ? (
+                  <>
+                    <div className="text-xs font-semibold text-amber-800 mb-1">{focusedLeave.soldier_name} — עריכה</div>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] text-gray-500">מתאריך</label>
+                        <input type="date" value={editData.start_date}
+                          onChange={(e) => setEditData((d) => ({ ...d, start_date: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-[#4b6043]" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] text-gray-500">עד תאריך</label>
+                        <input type="date" value={editData.end_date}
+                          onChange={(e) => setEditData((d) => ({ ...d, end_date: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-[#4b6043]" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] text-gray-500">שעת יציאה</label>
+                        <input type="time" value={editData.departure_time}
+                          onChange={(e) => setEditData((d) => ({ ...d, departure_time: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-[#4b6043]" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] text-gray-500">שעת חזרה</label>
+                        <input type="time" value={editData.return_time}
+                          onChange={(e) => setEditData((d) => ({ ...d, return_time: e.target.value }))}
+                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-[#4b6043]" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-gray-500">סיבה</label>
+                      <input type="text" value={editData.reason}
+                        onChange={(e) => setEditData((d) => ({ ...d, reason: e.target.value }))}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-[#4b6043]" />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={async () => {
+                          await onEdit(focusedLeave.id, { start_date: editData.start_date, end_date: editData.end_date, reason: editData.reason, departure_time: editData.departure_time, return_time: editData.return_time });
+                          setEditMode(false);
+                          setFocusedLeave(null);
+                        }}
+                        className="flex-1 bg-[#4b6043] text-white py-1.5 rounded-lg text-xs font-semibold"
+                      >שמור</button>
+                      <button onClick={() => setEditMode(false)}
+                        className="flex-1 border border-gray-200 text-gray-600 py-1.5 rounded-lg text-xs">ביטול</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-xs text-amber-800 space-y-0.5">
+                      <div><span className="font-semibold">{focusedLeave.soldier_name}</span>{" — "}{focusedLeave.reason}</div>
+                      <div className="text-amber-600">
+                        {fmt(focusedLeave.start_date)}–{fmt(focusedLeave.end_date)}
+                        {" "}({countLeaveDays(focusedLeave.start_date, focusedLeave.end_date, focusedLeave.departure_time, focusedLeave.return_time)} ימים)
+                      </div>
+                      {(focusedLeave.departure_time || focusedLeave.return_time) && (
+                        <div className="text-amber-500">
+                          {focusedLeave.departure_time ? `יציאה ${focusedLeave.departure_time}` : ""}
+                          {focusedLeave.departure_time && focusedLeave.return_time ? " · " : ""}
+                          {focusedLeave.return_time ? `חזרה ${focusedLeave.return_time}` : ""}
+                        </div>
+                      )}
+                    </div>
+                    {focusedLeave.status === "Pending" && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => { await onRequest(focusedLeave.id, "Approved"); setFocusedLeave(null); }}
+                          className="flex-1 bg-green-600 text-white py-1.5 rounded-lg text-xs font-semibold"
+                        >✓ אישור</button>
+                        <button
+                          onClick={async () => { await onRequest(focusedLeave.id, "Denied"); setFocusedLeave(null); }}
+                          className="flex-1 bg-red-500 text-white py-1.5 rounded-lg text-xs font-semibold"
+                        >✗ דחייה</button>
+                        <button
+                          onClick={() => { setEditData({ start_date: focusedLeave.start_date, end_date: focusedLeave.end_date, reason: focusedLeave.reason, departure_time: focusedLeave.departure_time ?? "", return_time: focusedLeave.return_time ?? "" }); setEditMode(true); }}
+                          className="flex-1 border border-amber-300 text-amber-800 py-1.5 rounded-lg text-xs font-semibold"
+                        >✏️ עריכה</button>
+                      </div>
+                    )}
+                    {focusedLeave.status === "Approved" && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => { await onRequest(focusedLeave.id, "Denied"); setFocusedLeave(null); }}
+                          className="flex-1 bg-red-500 text-white py-1.5 rounded-lg text-xs font-semibold"
+                        >✗ בטל אישור</button>
+                        <button
+                          onClick={() => { setEditData({ start_date: focusedLeave.start_date, end_date: focusedLeave.end_date, reason: focusedLeave.reason, departure_time: focusedLeave.departure_time ?? "", return_time: focusedLeave.return_time ?? "" }); setEditMode(true); }}
+                          className="flex-1 border border-amber-300 text-amber-800 py-1.5 rounded-lg text-xs font-semibold"
+                        >✏️ עריכה</button>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
@@ -700,35 +857,199 @@ function SoldiersTab({
   );
 }
 
+// ── Notifications Tab ──────────────────────────────────────────────────────────
+
+const TARGET_LABEL: Record<string, string> = {
+  all: "כולם",
+  commanders: "מפקדים",
+};
+
+function NotificationsTab({
+  notifications,
+  soldiers,
+  onSend,
+}: {
+  notifications: AppNotification[];
+  soldiers: Soldier[];
+  onSend: (data: { target: string; title: string; body: string }) => Promise<void>;
+}) {
+  const [target, setTarget] = useState("all");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const handleSend = async () => {
+    if (!title.trim() || !body.trim()) return;
+    setSending(true);
+    await onSend({ target, title: title.trim(), body: body.trim() });
+    setTitle("");
+    setBody("");
+    setSending(false);
+  };
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* Send form */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+        <div className="font-semibold text-sm text-gray-800">שלח התראה</div>
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">נמען</label>
+          <select
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#4b6043] bg-white"
+          >
+            <option value="all">כולם</option>
+            {soldiers.map((s) => (
+              <option key={s.name} value={s.name}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">כותרת</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="כותרת ההתראה"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#4b6043]"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">תוכן</label>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="תוכן ההודעה..."
+            rows={3}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none outline-none focus:ring-1 focus:ring-[#4b6043]"
+          />
+        </div>
+        <button
+          onClick={() => void handleSend()}
+          disabled={sending || !title.trim() || !body.trim()}
+          className="w-full bg-[#4b6043] text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+        >
+          {sending ? "שולח..." : "🔔 שלח התראה"}
+        </button>
+      </div>
+
+      {/* Log */}
+      <div className="space-y-2">
+        <div className="text-xs font-semibold text-gray-500 uppercase">היסטוריית התראות</div>
+        {notifications.length === 0 && (
+          <div className="text-center text-gray-400 py-8 text-sm">אין התראות עדיין</div>
+        )}
+        {notifications.map((n) => (
+          <div key={n.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+            <div className="flex justify-between items-start">
+              <div className="font-medium text-sm">{n.title}</div>
+              <span className="text-[10px] text-gray-400 shrink-0 mr-2">
+                {new Date(n.sent_at).toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              </span>
+            </div>
+            <div className="text-xs text-gray-600 mt-0.5">{n.body}</div>
+            <div className="text-[10px] text-gray-400 mt-1">
+              → {TARGET_LABEL[n.target] ?? n.target}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Manage Tab ─────────────────────────────────────────────────────────────────
+
+const PKAL_OPTIONS = [
+  "לוחם", "מ\"כ", "סמל", "רס\"ל", "מפקד מחלקה",
+];
 
 function ManageTab({
   soldiers,
   onDelete,
+  onUpdate,
 }: {
   soldiers: Soldier[];
   onDelete: (name: string) => void;
+  onUpdate: (oldName: string, data: { name?: string; pkal?: string; password?: string }) => Promise<void>;
 }) {
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPkal, setEditPkal] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+
+  const startEdit = (s: Soldier) => {
+    setEditing(s.name);
+    setEditName(s.name);
+    setEditPkal(s.pkal);
+    setEditPassword("");
+  };
+
+  const cancelEdit = () => { setEditing(null); setEditPassword(""); };
+
+  const saveEdit = async (oldName: string) => {
+    const data: { name?: string; pkal?: string; password?: string } = {};
+    if (editName.trim() && editName.trim() !== oldName) data.name = editName.trim();
+    if (editPkal.trim() && editPkal.trim() !== soldiers.find((s) => s.name === oldName)?.pkal) data.pkal = editPkal.trim();
+    if (editPassword.trim()) data.password = editPassword.trim();
+    if (Object.keys(data).length === 0) { cancelEdit(); return; }
+    await onUpdate(oldName, data);
+    setEditing(null);
+    setEditPassword("");
+  };
+
   return (
     <div className="p-4 space-y-3">
-      <p className="text-xs text-gray-500">
-        {soldiers.length} חיילים במערכת
-      </p>
+      <p className="text-xs text-gray-500">{soldiers.length} חיילים במערכת</p>
       {soldiers.map((s) => (
-        <div
-          key={s.name}
-          className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center justify-between"
-        >
-          <div>
-            <div className="font-medium text-sm">{s.name}</div>
-            <div className="text-xs text-gray-400">{s.pkal}</div>
-          </div>
-          <button
-            onClick={() => onDelete(s.name)}
-            className="text-red-500 border border-red-200 rounded-lg px-3 py-1 text-xs font-medium"
-          >
-            מחק
-          </button>
+        <div key={s.name} className="bg-white rounded-xl border border-gray-200 px-4 py-3 space-y-3">
+          {editing === s.name ? (
+            <>
+              <div className="text-xs font-semibold text-gray-700 mb-1">עריכת פרופיל</div>
+              <div>
+                <label className="text-[10px] text-gray-500">שם</label>
+                <input value={editName} onChange={(e) => setEditName(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-[#4b6043]" />
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500">תפקיד</label>
+                <select value={editPkal} onChange={(e) => setEditPkal(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-[#4b6043] bg-white">
+                  {PKAL_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500">סיסמה חדשה (השאר ריק אם לא לשנות)</label>
+                <input type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="סיסמה חדשה..."
+                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-[#4b6043]" />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => void saveEdit(s.name)}
+                  className="flex-1 bg-[#4b6043] text-white py-1.5 rounded-lg text-xs font-semibold">שמור</button>
+                <button onClick={cancelEdit}
+                  className="flex-1 border border-gray-200 text-gray-600 py-1.5 rounded-lg text-xs">ביטול</button>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium text-sm">{s.name}</div>
+                <div className="text-xs text-gray-400">{s.pkal}</div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => startEdit(s)}
+                  className="text-[#4b6043] border border-[#4b6043] rounded-lg px-3 py-1 text-xs font-medium">
+                  עריכה
+                </button>
+                <button onClick={() => onDelete(s.name)}
+                  className="text-red-500 border border-red-200 rounded-lg px-3 py-1 text-xs font-medium">
+                  מחק
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ))}
       {soldiers.length === 0 && (

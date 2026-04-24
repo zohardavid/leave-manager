@@ -15,6 +15,8 @@ export interface LeaveRequest {
   status: RequestStatus;
   submitted_at: string;
   commander_note?: string;
+  departure_time?: string;
+  return_time?: string;
 }
 
 export interface Round {
@@ -22,6 +24,14 @@ export interface Round {
   round: string;
   status: RoundStatus;
   submitted_at: string;
+}
+
+export interface AppNotification {
+  id: number;
+  target: string;
+  title: string;
+  body: string;
+  sent_at: string;
 }
 
 export interface Swap {

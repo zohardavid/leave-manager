@@ -13,11 +13,13 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const { soldier_name, start_date, end_date, reason } = req.body as {
+  const { soldier_name, start_date, end_date, reason, departure_time, return_time } = req.body as {
     soldier_name?: string;
     start_date?: string;
     end_date?: string;
     reason?: string;
+    departure_time?: string;
+    return_time?: string;
   };
   if (!soldier_name || !start_date || !end_date || !reason?.trim()) {
     res.status(400).json({ error: "כל השדות נדרשים" });
@@ -37,9 +39,9 @@ router.post("/", async (req, res) => {
     return;
   }
   const result = await query(
-    `INSERT INTO requests (soldier_name, start_date, end_date, reason, status, submitted_at, commander_note)
-     VALUES ($1, $2, $3, $4, 'Pending', $5, '') RETURNING *`,
-    [soldier_name, start_date, end_date, reason.trim(), new Date().toISOString().slice(0, 10)],
+    `INSERT INTO requests (soldier_name, start_date, end_date, reason, status, submitted_at, commander_note, departure_time, return_time)
+     VALUES ($1, $2, $3, $4, 'Pending', $5, '', $6, $7) RETURNING *`,
+    [soldier_name, start_date, end_date, reason.trim(), new Date().toISOString().slice(0, 10), departure_time ?? '', return_time ?? ''],
   );
   const req2 = result.rows[0] as { soldier_name: string; start_date: string; end_date: string };
   void notifyCommanders("בקשת יציאה חדשה 📋", `${req2.soldier_name} ביקש יציאה ${req2.start_date} – ${req2.end_date}`);
@@ -48,16 +50,20 @@ router.post("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params["id"]);
-  const { status, commander_note } = req.body as {
+  const { status, commander_note, departure_time, return_time } = req.body as {
     status?: string;
     commander_note?: string;
+    departure_time?: string;
+    return_time?: string;
   };
   const result = await query(
     `UPDATE requests SET
        status = COALESCE($1, status),
-       commander_note = COALESCE($2, commander_note)
-     WHERE id = $3 RETURNING *`,
-    [status ?? null, commander_note ?? null, id],
+       commander_note = COALESCE($2, commander_note),
+       departure_time = COALESCE($3, departure_time),
+       return_time = COALESCE($4, return_time)
+     WHERE id = $5 RETURNING *`,
+    [status ?? null, commander_note ?? null, departure_time ?? null, return_time ?? null, id],
   );
   if (result.rows.length === 0) {
     res.status(404).json({ error: "בקשה לא נמצאה" });
@@ -74,20 +80,24 @@ router.put("/:id", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   const id = Number(req.params["id"]);
-  const { start_date, end_date, reason } = req.body as {
+  const { start_date, end_date, reason, departure_time, return_time } = req.body as {
     start_date?: string;
     end_date?: string;
     reason?: string;
+    departure_time?: string;
+    return_time?: string;
   };
   const result = await query(
     `UPDATE requests SET
        start_date = COALESCE($1, start_date),
        end_date = COALESCE($2, end_date),
        reason = COALESCE($3, reason),
+       departure_time = COALESCE($4, departure_time),
+       return_time = COALESCE($5, return_time),
        status = 'Pending',
        commander_note = ''
-     WHERE id = $4 RETURNING *`,
-    [start_date ?? null, end_date ?? null, reason?.trim() ?? null, id],
+     WHERE id = $6 RETURNING *`,
+    [start_date ?? null, end_date ?? null, reason?.trim() ?? null, departure_time ?? null, return_time ?? null, id],
   );
   if (result.rows.length === 0) {
     res.status(404).json({ error: "בקשה לא נמצאה" });

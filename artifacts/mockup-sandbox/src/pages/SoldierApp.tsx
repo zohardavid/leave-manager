@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { Soldier, LeaveRequest, Swap } from "../lib/types";
 import { api } from "../lib/api";
 import { toast } from "sonner";
+import { subscribeToPush, unsubscribeFromPush } from "../lib/pushUtils";
 
 const DEPLOYMENT_START = new Date(2026, 3, 26); // local midnight, avoids UTC timezone shift
 const DEPLOYMENT_END = new Date(2026, 6, 13);
@@ -19,6 +20,14 @@ function dayType(d: Date): "home" | "base" {
 
 function diffDays(a: string, b: string) {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000) + 1;
+}
+
+export function countLeaveDays(startDate: string, endDate: string, departureTime?: string, returnTime?: string): number {
+  const base = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1;
+  let days = base;
+  if (departureTime && departureTime >= "12:00") days -= 1;
+  if (returnTime && returnTime <= "12:00") days -= 1;
+  return Math.max(0, days);
 }
 
 function todayStr() {
@@ -71,6 +80,9 @@ export default function SoldierApp({
   const [allRequests, setAllRequests] = useState<LeaveRequest[]>([]);
   const [swaps, setSwaps] = useState<Swap[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
+  const [pushEnabled, setPushEnabled] = useState(
+    () => localStorage.getItem("lm_push_enabled") !== "false",
+  );
 
   const load = useCallback(async () => {
     try {
@@ -91,7 +103,7 @@ export default function SoldierApp({
 
   const daysApproved = requests
     .filter((r) => r.status === "Approved")
-    .reduce((sum, r) => sum + diffDays(r.start_date, r.end_date), 0);
+    .reduce((sum, r) => sum + countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time), 0);
 
   const today = new Date();
   const daysLeft =
@@ -118,12 +130,34 @@ export default function SoldierApp({
           <div className="font-semibold text-sm">{soldier.name}</div>
           <div className="text-xs text-[#b8ceaf]">{soldier.pkal}</div>
         </div>
-        <button
-          onClick={onLogout}
-          className="text-xs text-[#b8ceaf] px-3 py-1.5 rounded-lg bg-[#3a4d33] active:bg-[#2e3d28]"
-        >
-          יציאה
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              if (pushEnabled) {
+                await unsubscribeFromPush(soldier.name);
+                localStorage.setItem("lm_push_enabled", "false");
+                setPushEnabled(false);
+                toast.info("התראות כובו");
+              } else {
+                const ok = await subscribeToPush(soldier);
+                localStorage.setItem("lm_push_enabled", ok ? "true" : "false");
+                setPushEnabled(ok);
+                if (ok) toast.success("התראות הופעלו");
+                else toast.error("לא ניתן להפעיל התראות");
+              }
+            }}
+            className="text-lg leading-none"
+            title={pushEnabled ? "כבה התראות" : "הפעל התראות"}
+          >
+            {pushEnabled ? "🔔" : "🔕"}
+          </button>
+          <button
+            onClick={onLogout}
+            className="text-xs text-[#b8ceaf] px-3 py-1.5 rounded-lg bg-[#3a4d33] active:bg-[#2e3d28]"
+          >
+            יציאה
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 overflow-y-auto pb-20">
@@ -239,11 +273,15 @@ function RequestsTab({
   const [startDate, setStartDate] = useState(todayStr());
   const [endDate, setEndDate] = useState(todayStr());
   const [reason, setReason] = useState("");
+  const [departureTime, setDepartureTime] = useState("");
+  const [returnTime, setReturnTime] = useState("");
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editStart, setEditStart] = useState("");
   const [editEnd, setEditEnd] = useState("");
   const [editReason, setEditReason] = useState("");
+  const [editDepartureTime, setEditDepartureTime] = useState("");
+  const [editReturnTime, setEditReturnTime] = useState("");
 
   const [swapPartner, setSwapPartner] = useState("");
   const [swapStart, setSwapStart] = useState("2026-04-26");
@@ -256,9 +294,11 @@ function RequestsTab({
     e.preventDefault();
     setLoading(true);
     try {
-      await api.createRequest({ soldier_name: soldier.name, start_date: startDate, end_date: endDate, reason });
+      await api.createRequest({ soldier_name: soldier.name, start_date: startDate, end_date: endDate, reason, departure_time: departureTime, return_time: returnTime });
       toast.success("✅ בקשה הוגשה בהצלחה!");
       setReason("");
+      setDepartureTime("");
+      setReturnTime("");
       await onRefresh();
       setView("history");
     } catch (err) {
@@ -284,6 +324,8 @@ function RequestsTab({
     setEditStart(r.start_date);
     setEditEnd(r.end_date);
     setEditReason(r.reason);
+    setEditDepartureTime(r.departure_time ?? "");
+    setEditReturnTime(r.return_time ?? "");
   };
 
   const submitEdit = async (e: React.FormEvent) => {
@@ -291,7 +333,7 @@ function RequestsTab({
     if (!editingId) return;
     setLoading(true);
     try {
-      await api.editRequest(editingId, { start_date: editStart, end_date: editEnd, reason: editReason });
+      await api.editRequest(editingId, { start_date: editStart, end_date: editEnd, reason: editReason, departure_time: editDepartureTime, return_time: editReturnTime });
       toast.success("הבקשה עודכנה ונשלחה לאישור מחדש");
       setEditingId(null);
       await onRefresh();
@@ -360,6 +402,19 @@ function RequestsTab({
               required
             />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">שעת יציאה</label>
+              <input type="time" value={departureTime} onChange={(e) => setDepartureTime(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">שעת חזרה</label>
+              <input type="time" value={returnTime} onChange={(e) => setReturnTime(e.target.value)} className={inputCls} />
+            </div>
+          </div>
+          <div className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
+            יציאה לפני 12:00 = יום בית · חזרה אחרי 12:00 = יום בית
+          </div>
           {(() => {
             const s = new Date(startDate);
             const e2 = new Date(endDate);
@@ -400,6 +455,16 @@ function RequestsTab({
                         <input type="date" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} min={editStart} className={inputCls} required />
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">שעת יציאה</label>
+                        <input type="time" value={editDepartureTime} onChange={(e) => setEditDepartureTime(e.target.value)} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">שעת חזרה</label>
+                        <input type="time" value={editReturnTime} onChange={(e) => setEditReturnTime(e.target.value)} className={inputCls} />
+                      </div>
+                    </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">סיבה</label>
                       <textarea value={editReason} onChange={(e) => setEditReason(e.target.value)} className={`${inputCls} resize-none h-16 text-sm`} required />
@@ -419,7 +484,12 @@ function RequestsTab({
                       <div className="text-sm font-semibold text-gray-800">{r.start_date} ← {r.end_date}</div>
                       <div className="text-xs">{STATUS_LABEL[r.status]}</div>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">{diffDays(r.start_date, r.end_date)} ימים · {r.reason}</div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time)} ימים
+                      {r.departure_time ? ` · יציאה ${r.departure_time}` : ""}
+                      {r.return_time ? ` · חזרה ${r.return_time}` : ""}
+                      {" · "}{r.reason}
+                    </div>
                     {r.commander_note && (
                       <div className="text-xs text-blue-700 mt-1.5 bg-blue-50 rounded-lg px-2 py-1">💬 {r.commander_note}</div>
                     )}

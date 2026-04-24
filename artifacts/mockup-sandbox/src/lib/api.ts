@@ -3,6 +3,7 @@ import type {
   LeaveRequest,
   Round,
   Swap,
+  AppNotification,
   RequestStatus,
   RoundStatus,
 } from "./types";
@@ -49,6 +50,8 @@ export const api = {
     start_date: string;
     end_date: string;
     reason: string;
+    departure_time?: string;
+    return_time?: string;
   }) =>
     request<LeaveRequest>("/requests", {
       method: "POST",
@@ -66,7 +69,7 @@ export const api = {
 
   editRequest: (
     id: number,
-    data: { start_date: string; end_date: string; reason: string },
+    data: { start_date: string; end_date: string; reason: string; departure_time?: string; return_time?: string },
   ) =>
     request<LeaveRequest>(`/requests/${id}`, {
       method: "PATCH",
@@ -106,6 +109,23 @@ export const api = {
 
   updateSwap: (id: number, data: { status: RequestStatus }) =>
     request<Swap>(`/swaps/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  getNotifications: () => request<AppNotification[]>("/notifications"),
+
+  sendNotification: (data: { target: string; title: string; body: string }) =>
+    request<{ ok: boolean }>("/notifications", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateSoldier: (
+    oldName: string,
+    data: { name?: string; pkal?: string; password?: string },
+  ) =>
+    request<Soldier>(`/soldiers/${encodeURIComponent(oldName)}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),

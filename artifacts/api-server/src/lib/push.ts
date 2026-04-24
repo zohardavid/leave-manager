@@ -23,12 +23,17 @@ async function send(subscription: webpush.PushSubscription, soldierName: string,
   }
 }
 
+export async function logNotification(target: string, title: string, body: string): Promise<void> {
+  await query("INSERT INTO notifications (target, title, body) VALUES ($1, $2, $3)", [target, title, body]).catch(() => {});
+}
+
 export async function notifyCommanders(title: string, body: string): Promise<void> {
   if (!process.env["VAPID_PUBLIC_KEY"]) return;
   const result = await query("SELECT soldier_name, subscription FROM subscriptions WHERE pkal = 'מפקד מחלקה'");
   await Promise.allSettled(
     result.rows.map((row) => send(row.subscription as webpush.PushSubscription, row.soldier_name as string, title, body)),
   );
+  await logNotification("commanders", title, body);
 }
 
 export async function notifySoldier(soldierName: string, title: string, body: string): Promise<void> {
@@ -36,4 +41,14 @@ export async function notifySoldier(soldierName: string, title: string, body: st
   const result = await query("SELECT subscription FROM subscriptions WHERE soldier_name = $1", [soldierName]);
   if (result.rows.length === 0) return;
   await send(result.rows[0].subscription as webpush.PushSubscription, soldierName, title, body);
+  await logNotification(soldierName, title, body);
+}
+
+export async function notifyAll(title: string, body: string): Promise<void> {
+  if (!process.env["VAPID_PUBLIC_KEY"]) return;
+  const result = await query("SELECT soldier_name, subscription FROM subscriptions");
+  await Promise.allSettled(
+    result.rows.map((row) => send(row.subscription as webpush.PushSubscription, row.soldier_name as string, title, body)),
+  );
+  await logNotification("all", title, body);
 }

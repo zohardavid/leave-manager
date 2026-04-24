@@ -17,6 +17,10 @@ export function query(text: string, params?: unknown[]) {
   return getPool().query(text, params);
 }
 
+export function getClient() {
+  return getPool().connect();
+}
+
 export async function initDb(): Promise<void> {
   await query(`
     CREATE TABLE IF NOT EXISTS soldiers (
@@ -48,5 +52,16 @@ export async function initDb(): Promise<void> {
       pkal TEXT NOT NULL,
       subscription JSONB NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      target TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      sent_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+  await query(`
+    ALTER TABLE requests ADD COLUMN IF NOT EXISTS departure_time TEXT NOT NULL DEFAULT '';
+    ALTER TABLE requests ADD COLUMN IF NOT EXISTS return_time TEXT NOT NULL DEFAULT '';
   `);
 }
