@@ -114,11 +114,6 @@ export default function SoldierApp({
       : todayMidnight <= DEPLOYMENT_END
         ? Math.round((DEPLOYMENT_END.getTime() - todayMidnight.getTime()) / 86400000)
         : 0;
-  const countdownLabel =
-    today < DEPLOYMENT_START ? "ימים לתחילת תעסוקה"
-    : today <= DEPLOYMENT_END ? "ימים לסיום תעסוקה"
-    : "התעסוקה הסתיימה";
-
   const navItems: { key: Tab; label: string; Icon: React.FC<{ className?: string }> }[] = [
     { key: "home", label: "בית", Icon: IconHome },
     { key: "requests", label: "בקשות", Icon: IconClipboard },
@@ -172,7 +167,6 @@ export default function SoldierApp({
           <HomeTab
             daysApproved={daysApproved}
             daysLeft={daysLeft}
-            countdownLabel={countdownLabel}
             requestCount={requests.length}
           />
         )}
@@ -216,7 +210,6 @@ export default function SoldierApp({
 function HomeTab({
   daysApproved,
   daysLeft,
-  countdownLabel,
   requestCount,
 }: {
   daysApproved: number;
@@ -226,75 +219,32 @@ function HomeTab({
 }) {
   const today = new Date();
   const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const todayType = dayType(today);
   const isInDeployment = todayMidnight >= DEPLOYMENT_START && todayMidnight <= DEPLOYMENT_END;
-  const isHome = isInDeployment && todayType === "home";
   const beforeDeployment = todayMidnight < DEPLOYMENT_START;
-
-  // next home period start
-  const nextHomeStart = (() => {
-    if (!isInDeployment) return null;
-    for (let i = 1; i <= 14; i++) {
-      const d = new Date(todayMidnight);
-      d.setDate(d.getDate() + i);
-      if (d > DEPLOYMENT_END) return null;
-      if (dayType(d) === "home") return d;
-    }
-    return null;
-  })();
+  const countdownTo = beforeDeployment ? "לתחילת התעסוקה" : "לסיום התעסוקה";
+  const countdownDate = beforeDeployment ? "26 באפריל 2026" : "13 ביולי 2026";
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 flex flex-col gap-3">
       {/* Hero */}
-      {beforeDeployment ? (
-        <div className="rounded-2xl p-5 bg-[#4b6043] text-white shadow-md">
-          <div className="text-xs font-medium text-[#b8ceaf] uppercase tracking-widest mb-3">תחילת תעסוקה</div>
-          <div className="flex items-end gap-3 mb-1">
-            <span className="text-5xl font-bold leading-none">{daysLeft}</span>
-            <span className="text-lg text-white/80 mb-1">ימים</span>
-          </div>
-          <div className="text-white/70 text-sm">יום ראשון, 26 באפריל 2026</div>
+      <div className="bg-[#2d3a2e] rounded-2xl p-6 shadow-sm">
+        <div className="flex items-baseline gap-2 mb-1">
+          <span className="text-5xl font-bold text-white leading-none">{daysLeft}</span>
+          <span className="text-2xl font-semibold text-white/80">ימים</span>
         </div>
-      ) : isInDeployment ? (
-        <div className={`rounded-2xl p-5 ${isHome ? "bg-green-600" : "bg-[#4b6043]"} text-white shadow-md`}>
-          <div className="text-xs font-medium text-white/60 uppercase tracking-widest mb-3">
-            {isHome ? "אתה כרגע" : "אתה כרגע"}
-          </div>
-          <div className="text-3xl font-bold mb-1">{isHome ? "בבית 🏠" : "בבסיס 🛡️"}</div>
-          <div className="text-white/70 text-sm">
-            {isHome
-              ? "ימי בית לפי לוח הסבב"
-              : nextHomeStart
-                ? `ימי הבית הבאים מתחילים ב-${nextHomeStart.toLocaleDateString("he-IL", { day: "numeric", month: "long" })}`
-                : `נותרו ${daysLeft} ימים לסיום התעסוקה`}
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-2xl p-5 bg-gray-400 text-white shadow-md">
-          <div className="text-2xl font-bold">התעסוקה הסתיימה</div>
-          <div className="text-white/70 text-sm mt-1">13 ביולי 2026</div>
-        </div>
-      )}
+        <div className="text-white text-lg font-medium mt-1">{countdownTo}</div>
+        <div className="text-white/45 text-sm mt-2">{countdownDate}</div>
+      </div>
 
-      {/* Cards */}
+      {/* 2 metric cards */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white rounded-2xl p-4 shadow-sm">
           <div className="text-3xl font-bold text-[#4b6043]">{daysApproved}</div>
-          <div className="text-xs font-medium text-gray-500 mt-1">ימי חופש שאושרו</div>
+          <div className="text-xs text-gray-500 mt-1.5 leading-snug">ימי חופש שאושרו</div>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm">
           <div className="text-3xl font-bold text-[#2d3a2e]">{requestCount}</div>
-          <div className="text-xs font-medium text-gray-500 mt-1">
-            {requestCount === 0 ? "עוד לא הגשת בקשה" : requestCount === 1 ? "בקשה שהוגשה" : "בקשות שהוגשו"}
-          </div>
-        </div>
-        <div className="col-span-2 bg-[#4b6043]/8 border border-[#4b6043]/15 rounded-2xl px-4 py-3 flex items-center justify-between">
-          <div>
-            <div className="text-xs font-semibold text-[#4b6043]">תקופת תעסוקה</div>
-            <div className="text-sm font-bold text-[#2d3a2e] mt-0.5">26 באפריל – 13 ביולי 2026</div>
-            <div className="text-[11px] text-gray-500 mt-0.5">מחזור: 8 ימי בסיס · 6 ימי בית</div>
-          </div>
-          <div className="text-2xl font-bold text-[#4b6043] opacity-20">79</div>
+          <div className="text-xs text-gray-500 mt-1.5 leading-snug">בקשות יציאה שהוגשו</div>
         </div>
       </div>
     </div>
