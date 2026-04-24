@@ -245,6 +245,7 @@ export default function CommanderApp({
                 requests={requests}
                 pendingRequests={pendingRequests}
                 pendingSwaps={pendingSwaps}
+                soldiers={soldiers}
                 noteMap={noteMap}
                 setNoteMap={setNoteMap}
                 onRequest={handleRequest}
@@ -264,7 +265,7 @@ export default function CommanderApp({
                 onEdit={handleEdit}
               />
             )}
-            {tab === "soldiers" && <SoldiersTab stats={soldierStats} />}
+            {tab === "soldiers" && <SoldiersTab stats={soldierStats} requests={requests} />}
             {tab === "notifications" && (
               <NotificationsTab
                 notifications={notifications}
@@ -315,6 +316,7 @@ function RequestsTab({
   requests,
   pendingRequests,
   pendingSwaps,
+  soldiers,
   noteMap,
   setNoteMap,
   onRequest,
@@ -323,16 +325,42 @@ function RequestsTab({
   requests: LeaveRequest[];
   pendingRequests: LeaveRequest[];
   pendingSwaps: Swap[];
+  soldiers: Soldier[];
   noteMap: Record<number, string>;
   setNoteMap: React.Dispatch<React.SetStateAction<Record<number, string>>>;
   onRequest: (id: number, status: "Approved" | "Denied") => void;
   onSwap: (id: number, status: "Approved" | "Denied") => void;
 }) {
   const [subTab, setSubTab] = useState<"pending" | "history">("pending");
+  const [filterSoldier, setFilterSoldier] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+
   const handled = requests.filter((r) => r.status !== "Pending");
+
+  const approvedCount = requests.filter((r) => r.status === "Approved").length;
+  const deniedCount = requests.filter((r) => r.status === "Denied").length;
+
+  const filteredHistory = [...handled]
+    .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
+    .filter((r) => filterSoldier === "all" || r.soldier_name === filterSoldier)
+    .filter((r) => filterStatus === "all" || r.status === filterStatus);
 
   return (
     <div className="p-4 space-y-4">
+      {/* Summary */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: "ממתינות", value: pendingRequests.length, color: "bg-yellow-50 border-yellow-200 text-yellow-800" },
+          { label: "אושרו", value: approvedCount, color: "bg-green-50 border-green-200 text-green-800" },
+          { label: "נדחו", value: deniedCount, color: "bg-red-50 border-red-200 text-red-800" },
+        ].map((s) => (
+          <div key={s.label} className={`rounded-xl border px-3 py-2 text-center ${s.color}`}>
+            <div className="text-xl font-bold">{s.value}</div>
+            <div className="text-xs">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Sub tabs */}
       <div className="flex bg-gray-100 rounded-xl p-1">
         {(["pending", "history"] as const).map((t) => (
@@ -340,30 +368,22 @@ function RequestsTab({
             key={t}
             onClick={() => setSubTab(t)}
             className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-              subTab === t
-                ? "bg-white shadow text-slate-900"
-                : "text-slate-500"
+              subTab === t ? "bg-white shadow text-slate-900" : "text-slate-500"
             }`}
           >
-            {t === "pending" ? "ממתינות לאישור" : "היסטוריה"}
+            {t === "pending" ? `ממתינות (${pendingRequests.length + pendingSwaps.length})` : "היסטוריה"}
           </button>
         ))}
       </div>
 
       {subTab === "pending" ? (
         <div className="space-y-5">
-          {/* Leave requests */}
           {pendingRequests.length > 0 && (
             <section>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">
-                בקשות חופשה
-              </h3>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">בקשות חופשה</h3>
               <div className="space-y-3">
                 {pendingRequests.map((r) => (
-                  <div
-                    key={r.id}
-                    className="bg-white rounded-xl border border-gray-200 p-4 space-y-3"
-                  >
+                  <div key={r.id} className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="font-semibold">{r.soldier_name}</div>
@@ -378,36 +398,20 @@ function RequestsTab({
                             {r.return_time ? `חזרה ${r.return_time}` : ""}
                           </div>
                         )}
-                        <div className="text-sm text-gray-600 mt-1">
-                          {r.reason}
-                        </div>
+                        <div className="text-sm text-gray-600 mt-1">{r.reason}</div>
                       </div>
-                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
-                        ממתין
-                      </span>
+                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">ממתין</span>
                     </div>
                     <textarea
                       placeholder="הערת מפקד (אופציונלי)"
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none outline-none focus:ring-1 focus:ring-[#4b6043]"
                       rows={2}
                       value={noteMap[r.id] ?? ""}
-                      onChange={(e) =>
-                        setNoteMap((m) => ({ ...m, [r.id]: e.target.value }))
-                      }
+                      onChange={(e) => setNoteMap((m) => ({ ...m, [r.id]: e.target.value }))}
                     />
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => onRequest(r.id, "Approved")}
-                        className="flex-1 bg-green-600 text-white py-2 rounded-xl text-sm font-semibold"
-                      >
-                        ✓ אישור
-                      </button>
-                      <button
-                        onClick={() => onRequest(r.id, "Denied")}
-                        className="flex-1 bg-red-500 text-white py-2 rounded-xl text-sm font-semibold"
-                      >
-                        ✗ דחייה
-                      </button>
+                      <button onClick={() => onRequest(r.id, "Approved")} className="flex-1 bg-green-600 text-white py-2 rounded-xl text-sm font-semibold">✓ אישור</button>
+                      <button onClick={() => onRequest(r.id, "Denied")} className="flex-1 bg-red-500 text-white py-2 rounded-xl text-sm font-semibold">✗ דחייה</button>
                     </div>
                   </div>
                 ))}
@@ -415,44 +419,22 @@ function RequestsTab({
             </section>
           )}
 
-          {/* Pending swaps */}
           {pendingSwaps.length > 0 && (
             <section>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">
-                בקשות החלפה
-              </h3>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">בקשות החלפה</h3>
               <div className="space-y-3">
                 {pendingSwaps.map((s) => (
-                  <div
-                    key={s.id}
-                    className="bg-white rounded-xl border border-gray-200 p-4 space-y-3"
-                  >
+                  <div key={s.id} className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
                     <div className="flex justify-between items-start">
                       <div>
-                        <div className="font-semibold">
-                          {s.requester} ↔ {s.partner}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {fmt(s.start_date)} – {fmt(s.end_date)}
-                        </div>
+                        <div className="font-semibold">{s.requester} ↔ {s.partner}</div>
+                        <div className="text-sm text-gray-500">{fmt(s.start_date)} – {fmt(s.end_date)}</div>
                       </div>
-                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
-                        ממתין
-                      </span>
+                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">ממתין</span>
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => onSwap(s.id, "Approved")}
-                        className="flex-1 bg-green-600 text-white py-2 rounded-xl text-sm font-semibold"
-                      >
-                        ✓ אישור
-                      </button>
-                      <button
-                        onClick={() => onSwap(s.id, "Denied")}
-                        className="flex-1 bg-red-500 text-white py-2 rounded-xl text-sm font-semibold"
-                      >
-                        ✗ דחייה
-                      </button>
+                      <button onClick={() => onSwap(s.id, "Approved")} className="flex-1 bg-green-600 text-white py-2 rounded-xl text-sm font-semibold">✓ אישור</button>
+                      <button onClick={() => onSwap(s.id, "Denied")} className="flex-1 bg-red-500 text-white py-2 rounded-xl text-sm font-semibold">✗ דחייה</button>
                     </div>
                   </div>
                 ))}
@@ -460,57 +442,56 @@ function RequestsTab({
             </section>
           )}
 
-          {pendingRequests.length === 0 &&
-            pendingSwaps.length === 0 && (
-              <div className="text-center text-gray-400 py-10">
-                אין בקשות ממתינות
-              </div>
-            )}
+          {pendingRequests.length === 0 && pendingSwaps.length === 0 && (
+            <div className="text-center text-gray-400 py-10">אין בקשות ממתינות</div>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
-          {handled.length === 0 ? (
-            <div className="text-center text-gray-400 py-10">
-              אין היסטוריה
-            </div>
+          {/* Filters */}
+          <div className="flex gap-2">
+            <select
+              value={filterSoldier}
+              onChange={(e) => setFilterSoldier(e.target.value)}
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-1 focus:ring-[#4b6043]"
+            >
+              <option value="all">כל החיילים</option>
+              {soldiers.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+            </select>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-1 focus:ring-[#4b6043]"
+            >
+              <option value="all">כל הסטטוסים</option>
+              <option value="Approved">אושרו</option>
+              <option value="Denied">נדחו</option>
+            </select>
+          </div>
+
+          {filteredHistory.length === 0 ? (
+            <div className="text-center text-gray-400 py-10">אין תוצאות</div>
           ) : (
-            [...handled]
-              .sort(
-                (a, b) =>
-                  new Date(b.submitted_at).getTime() -
-                  new Date(a.submitted_at).getTime(),
-              )
-              .map((r) => (
-                <div
-                  key={r.id}
-                  className={`rounded-xl border p-3 ${STATUS_BG[r.status] ?? ""}`}
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-sm">
-                      {r.soldier_name}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`w-2 h-2 rounded-full ${STATUS_DOT[r.status] ?? ""}`}
-                      />
-                      <span className="text-xs text-gray-600">
-                        {STATUS_LABEL[r.status]}
-                      </span>
-                    </div>
+            filteredHistory.map((r) => (
+              <div key={r.id} className={`rounded-xl border p-3 ${STATUS_BG[r.status] ?? ""}`}>
+                <div className="flex justify-between items-center">
+                  <span className="font-medium text-sm">{r.soldier_name}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${STATUS_DOT[r.status] ?? ""}`} />
+                    <span className="text-xs text-gray-600">{STATUS_LABEL[r.status]}</span>
                   </div>
-                  <div className="text-xs text-gray-500 mt-0.5">
-                    {fmt(r.start_date)} – {fmt(r.end_date)} ({countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time)} ימים)
-                    {r.departure_time ? ` · יציאה ${r.departure_time}` : ""}
-                    {r.return_time ? ` · חזרה ${r.return_time}` : ""}
-                    {" · "}{r.reason}
-                  </div>
-                  {r.commander_note && (
-                    <div className="text-xs text-gray-400 mt-1 italic">
-                      "{r.commander_note}"
-                    </div>
-                  )}
                 </div>
-              ))
+                <div className="text-xs text-gray-500 mt-0.5">
+                  {fmt(r.start_date)} – {fmt(r.end_date)} ({countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time)} ימים)
+                  {r.departure_time ? ` · יציאה ${r.departure_time}` : ""}
+                  {r.return_time ? ` · חזרה ${r.return_time}` : ""}
+                  {" · "}{r.reason}
+                </div>
+                {r.commander_note && (
+                  <div className="text-xs text-gray-400 mt-1 italic">"{r.commander_note}"</div>
+                )}
+              </div>
+            ))
           )}
         </div>
       )}
@@ -828,51 +809,101 @@ function CalendarTab({
 
 function SoldiersTab({
   stats,
+  requests,
 }: {
   stats: Array<Soldier & { days: number }>;
+  requests: LeaveRequest[];
 }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const onLeaveToday = (name: string) =>
+    requests.some(
+      (r) => r.status === "Approved" && r.soldier_name === name && r.start_date <= todayStr && r.end_date >= todayStr,
+    );
+
+  const pendingDays = (name: string) =>
+    requests
+      .filter((r) => r.status === "Pending" && r.soldier_name === name)
+      .reduce((sum, r) => sum + countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time), 0);
+
+  // pkal breakdown
+  const pkalCounts: Record<string, number> = {};
+  for (const s of stats) {
+    pkalCounts[s.pkal] = (pkalCounts[s.pkal] ?? 0) + 1;
+  }
+  const onLeaveTodayCount = stats.filter((s) => onLeaveToday(s.name)).length;
+  const onBaseCount = stats.length - onLeaveTodayCount;
+
   return (
-    <div className="p-4">
+    <div className="p-4 space-y-4">
+      {/* Today summary */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-white rounded-xl border border-gray-200 px-3 py-3 text-center">
+          <div className="text-2xl font-bold text-[#4b6043]">{onBaseCount}</div>
+          <div className="text-xs text-gray-500 mt-0.5">🛡️ בבסיס היום</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 px-3 py-3 text-center">
+          <div className="text-2xl font-bold text-amber-600">{onLeaveTodayCount}</div>
+          <div className="text-xs text-gray-500 mt-0.5">🏠 ביציאה היום</div>
+        </div>
+      </div>
+
+      {/* Pkal breakdown */}
+      {Object.keys(pkalCounts).length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-3">
+          <div className="text-xs font-semibold text-gray-500 uppercase mb-2">הרכב מחלקה</div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(pkalCounts)
+              .sort((a, b) => b[1] - a[1])
+              .map(([pkal, count]) => (
+                <div key={pkal} className="flex items-center gap-1.5 bg-[#f4f2ec] border border-[#d9d5cc] rounded-lg px-3 py-1.5">
+                  <span className="font-bold text-[#4b6043] text-sm">{count}</span>
+                  <span className="text-xs text-gray-600">{pkal}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Per-soldier table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="text-right px-3 py-2.5 font-medium text-gray-600">
-                שם
-              </th>
-              <th className="text-center px-3 py-2.5 font-medium text-gray-600">
-                פק"ל
-              </th>
-              <th className="text-center px-3 py-2.5 font-medium text-gray-600">
-                ימי חופש
-              </th>
+              <th className="text-right px-3 py-2.5 font-medium text-gray-600">שם</th>
+              <th className="text-center px-3 py-2.5 font-medium text-gray-600">אושר</th>
+              <th className="text-center px-3 py-2.5 font-medium text-gray-600">ממתין</th>
+              <th className="text-center px-3 py-2.5 font-medium text-gray-600">היום</th>
             </tr>
           </thead>
           <tbody>
-            {stats.map((s, i) => (
-              <tr
-                key={s.name}
-                className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}
-              >
-                <td className="px-3 py-2.5 font-medium">{s.name}</td>
-                <td className="px-3 py-2.5 text-center text-gray-500 text-xs">
-                  {s.pkal}
-                </td>
-                <td className="px-3 py-2.5 text-center">
-                  <span
-                    className={`font-semibold ${
-                      s.days > 10
-                        ? "text-red-500"
-                        : s.days > 5
-                          ? "text-yellow-600"
-                          : "text-green-600"
-                    }`}
-                  >
-                    {s.days}
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {stats.map((s, i) => {
+              const pending = pendingDays(s.name);
+              const away = onLeaveToday(s.name);
+              return (
+                <tr key={s.name} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
+                  <td className="px-3 py-2.5">
+                    <div className="font-medium">{s.name}</div>
+                    <div className="text-[10px] text-gray-400">{s.pkal}</div>
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <span className={`font-semibold text-sm ${s.days > 10 ? "text-red-500" : s.days > 5 ? "text-yellow-600" : "text-green-600"}`}>
+                      {s.days}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    {pending > 0
+                      ? <span className="text-yellow-600 font-medium text-sm">{pending}</span>
+                      : <span className="text-gray-300 text-sm">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${away ? "bg-amber-100 text-amber-700" : "bg-green-50 text-green-700"}`}>
+                      {away ? "יציאה" : "בסיס"}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {stats.length === 0 && (
