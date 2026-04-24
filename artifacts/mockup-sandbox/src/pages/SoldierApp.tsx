@@ -106,11 +106,12 @@ export default function SoldierApp({
     .reduce((sum, r) => sum + countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time), 0);
 
   const today = new Date();
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const daysLeft =
-    today < DEPLOYMENT_START
-      ? Math.round((DEPLOYMENT_START.getTime() - today.getTime()) / 86400000)
-      : today <= DEPLOYMENT_END
-        ? Math.round((DEPLOYMENT_END.getTime() - today.getTime()) / 86400000)
+    todayMidnight < DEPLOYMENT_START
+      ? Math.round((DEPLOYMENT_START.getTime() - todayMidnight.getTime()) / 86400000)
+      : todayMidnight <= DEPLOYMENT_END
+        ? Math.round((DEPLOYMENT_END.getTime() - todayMidnight.getTime()) / 86400000)
         : 0;
   const countdownLabel =
     today < DEPLOYMENT_START ? "ימים לתחילת תעסוקה"
