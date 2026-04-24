@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/zohar/AppData/Local/Programs/Python//**)",
+      "Bash(/c/Users/zohar/AppData/Local/Programs/Python/Python39/python.exe --version)",
+      "Bash(/c/Python39/python.exe -m ensurepip)",
+      "Bash(/c/Python39/python.exe -m pip install streamlit pandas)",
+      "Bash(/c/Python39/Scripts/streamlit.exe run *)",
+      "Bash(tasklist)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ]
+  }
+}

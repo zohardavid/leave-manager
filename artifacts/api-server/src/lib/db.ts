@@ -43,5 +43,10 @@ export async function initDb(): Promise<void> {
       status TEXT NOT NULL DEFAULT 'Pending',
       submitted_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      soldier_name TEXT PRIMARY KEY,
+      pkal TEXT NOT NULL,
+      subscription JSONB NOT NULL
+    );
   `);
 }

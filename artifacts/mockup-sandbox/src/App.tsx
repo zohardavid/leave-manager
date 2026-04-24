@@ -19,6 +19,39 @@ function loadSession(): Session | null {
   }
 }
 
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const output = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) output[i] = rawData.charCodeAt(i);
+  return output;
+}
+
+async function subscribeToPush(soldier: Soldier): Promise<void> {
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return;
+    const reg = await navigator.serviceWorker.ready;
+    const keyRes = await fetch("/api/push/vapid-key");
+    if (!keyRes.ok) return;
+    const { key } = (await keyRes.json()) as { key: string };
+    if (!key) return;
+    const subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(key),
+    });
+    await fetch("/api/push/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ soldier_name: soldier.name, pkal: soldier.pkal, subscription }),
+    });
+  } catch {
+    // push not supported or denied — silent fail
+  }
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(loadSession);
 
@@ -28,6 +61,7 @@ export default function App() {
     const s: Session = { soldier, role };
     setSession(s);
     localStorage.setItem("lm_session", JSON.stringify(s));
+    void subscribeToPush(soldier);
   };
 
   const handleLogout = () => {

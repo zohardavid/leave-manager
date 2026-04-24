@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { query } from "../lib/db.js";
+import { notifyCommanders } from "../lib/push.js";
 
 const router = Router();
 
@@ -46,6 +47,7 @@ router.post("/register", async (req, res) => {
     pkal,
     password,
   ]);
+  void notifyCommanders("חייל חדש נרשם 🪖", `${name.trim()} (${pkal}) הצטרף למערכת`);
   res.status(201).json({ soldier: { name: name.trim(), pkal } });
 });
 

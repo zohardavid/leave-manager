@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { initDb } from "./lib/db.js";
+import { initPush } from "./lib/push.js";
 
 const port = Number(process.env["PORT"] ?? "3001");
 
@@ -10,6 +11,7 @@ if (Number.isNaN(port) || port <= 0) {
 
 initDb()
   .then(() => {
+    initPush();
     app.listen(port, (err) => {
       if (err) {
         logger.error({ err }, "Error listening on port");

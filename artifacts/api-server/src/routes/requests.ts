@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { query } from "../lib/db.js";
+import { notifyCommanders, notifySoldier } from "../lib/push.js";
 
 const router = Router();
 
@@ -40,6 +41,8 @@ router.post("/", async (req, res) => {
      VALUES ($1, $2, $3, $4, 'Pending', $5, '') RETURNING *`,
     [soldier_name, start_date, end_date, reason.trim(), new Date().toISOString().slice(0, 10)],
   );
+  const req2 = result.rows[0] as { soldier_name: string; start_date: string; end_date: string };
+  void notifyCommanders("בקשת יציאה חדשה 📋", `${req2.soldier_name} ביקש יציאה ${req2.start_date} – ${req2.end_date}`);
   res.status(201).json(result.rows[0]);
 });
 
@@ -59,6 +62,12 @@ router.put("/:id", async (req, res) => {
   if (result.rows.length === 0) {
     res.status(404).json({ error: "בקשה לא נמצאה" });
     return;
+  }
+  const updated = result.rows[0] as { soldier_name: string; status: string };
+  if (status === "Approved") {
+    void notifySoldier(updated.soldier_name, "הבקשה אושרה ✅", "בקשת היציאה שלך אושרה על ידי המפקד");
+  } else if (status === "Denied") {
+    void notifySoldier(updated.soldier_name, "הבקשה נדחתה ❌", "בקשת היציאה שלך נדחתה על ידי המפקד");
   }
   res.json(result.rows[0]);
 });

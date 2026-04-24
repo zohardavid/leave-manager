@@ -5,6 +5,7 @@ import requestsRouter from "./requests.js";
 import soldiersRouter from "./soldiers.js";
 import roundsRouter from "./rounds.js";
 import swapsRouter from "./swaps.js";
+import pushRouter from "./push.js";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use("/requests", requestsRouter);
 router.use("/soldiers", soldiersRouter);
 router.use("/rounds", roundsRouter);
 router.use("/swaps", swapsRouter);
+router.use("/push", pushRouter);
 
 export default router;
