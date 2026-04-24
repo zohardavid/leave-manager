@@ -87,21 +87,21 @@ export default function LoginPage({
   };
 
   return (
-    // רקע מדורג ויוקרתי יותר
-    <div className="flex-1 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-[#fdfcf9] to-[#f3f1eb]">
+    // h-screen ו-overflow-hidden מבטלים את הגלילה בדסקטופ ובמובייל
+    <div className="h-screen w-full flex flex-col items-center justify-center p-6 bg-gradient-to-b from-[#fdfcf9] to-[#f3f1eb] overflow-hidden select-none">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          {/* אייקון קסדה צף ללא ריבוע כבד */}
-          <div className="w-24 h-24 flex items-center justify-center text-6xl mx-auto mb-4 drop-shadow-xl animate-bounce-slow">
+        <div className="text-center mb-6">
+          {/* אייקון קסדה צף */}
+          <div className="w-20 h-20 flex items-center justify-center text-6xl mx-auto mb-4 drop-shadow-xl animate-bounce-slow">
             🪖
           </div>
-          <div className="text-[11px] tracking-[0.25em] uppercase text-[#4b6043]/70 font-bold mb-2">מחלקה · תעסוקה 2026</div>
-          <h1 className="text-3xl font-extrabold text-[#1a241b] tracking-tight leading-none mb-3">
+          
+          {/* עדכון למחלקה 1 */}
+          <div className="text-[11px] tracking-[0.25em] uppercase text-[#4b6043]/70 font-bold mb-2">מחלקה 1 · תעסוקה 2026</div>
+          
+          <h1 className="text-3xl font-extrabold text-[#1a241b] tracking-tight leading-none">
             ניהול יציאות
           </h1>
-          <p className="text-gray-500 text-sm font-medium">
-            כניסה לחיילים ומפקדים
-          </p>
           
           {(installPrompt || isIos) && (
             <button
@@ -120,14 +120,14 @@ export default function LoginPage({
           )}
         </div>
 
-        {/* הכרטיס המרכזי עם צללית רכה מאוד */}
-        <div className="bg-white rounded-[2rem] p-6 shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-white">
+        {/* הכרטיס המרכזי */}
+        <div className="bg-white rounded-[2.5rem] p-6 shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-white">
           <div className="flex bg-gray-100/80 p-1.5 rounded-2xl mb-6">
             {(["login", "register"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`flex-1 py-2.5 text-sm font-bold rounded-[calc(1rem-2px)] transition-all ${
+                className={`flex-1 py-2.5 text-sm font-bold rounded-[calc(1.25rem-4px)] transition-all ${
                   tab === t
                     ? "bg-white shadow-sm text-[#4b6043]"
                     : "text-gray-400 hover:text-gray-600"
@@ -139,7 +139,7 @@ export default function LoginPage({
           </div>
 
           {tab === "login" ? (
-            <form onSubmit={handleLogin} className="space-y-5">
+            <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mr-1">
                   שם מלא
@@ -174,8 +174,7 @@ export default function LoginPage({
               </button>
             </form>
           ) : (
-            <form onSubmit={handleRegister} className="space-y-5">
-              {/* מבנה דומה להרשמה עם שיפורי העיצוב */}
+            <form onSubmit={handleRegister} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mr-1">
                   שם מלא
@@ -241,7 +240,7 @@ export default function LoginPage({
           )}
         </div>
         
-        <p className="text-center text-gray-400 text-[10px] mt-8 tracking-widest uppercase font-medium">
+        <p className="text-center text-gray-400 text-[10px] mt-6 tracking-widest uppercase font-medium">
           Powered by Zohar David &bull; 2026
         </p>
       </div>
