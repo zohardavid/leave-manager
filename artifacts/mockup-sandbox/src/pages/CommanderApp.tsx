@@ -216,11 +216,14 @@ export default function CommanderApp({
                   setPushEnabled(false);
                   toast.info("התראות כובו");
                 } else {
-                  const ok = await subscribeToPush(soldier);
-                  localStorage.setItem("lm_push_enabled", ok ? "true" : "false");
-                  setPushEnabled(ok);
-                  if (ok) toast.success("התראות הופעלו");
-                  else toast.error("לא ניתן להפעיל התראות");
+                  const result = await subscribeToPush(soldier);
+                  localStorage.setItem("lm_push_enabled", result.ok ? "true" : "false");
+                  setPushEnabled(result.ok);
+                  if (result.ok) toast.success("התראות הופעלו");
+                  else if (result.reason === "unsupported") toast.error("הדפדפן לא תומך בהתראות");
+                  else if (result.reason === "denied") toast.error("הרשאת התראות נדחתה");
+                  else if (result.reason === "server") toast.error(`שגיאת שרת: ${result.detail ?? ""}`);
+                  else toast.error(`שגיאה: ${result.detail ?? ""}`);
                 }
               }}
               className="text-[#b8ceaf] opacity-90 active:opacity-60"

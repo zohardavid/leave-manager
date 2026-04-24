@@ -11,16 +11,22 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   return output.buffer as ArrayBuffer;
 }
 
-export async function subscribeToPush(soldier: Soldier): Promise<boolean> {
+export type PushResult =
+  | { ok: true }
+  | { ok: false; reason: "unsupported" | "denied" | "server" | "error"; detail?: string };
+
+export async function subscribeToPush(soldier: Soldier): Promise<PushResult> {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    return { ok: false, reason: "unsupported" };
+  }
   try {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
     const permission = await Notification.requestPermission();
-    if (permission !== "granted") return false;
+    if (permission !== "granted") return { ok: false, reason: "denied" };
     const reg = await navigator.serviceWorker.ready;
     const keyRes = await fetch(`${API_BASE}/api/push/vapid-key`);
-    if (!keyRes.ok) return false;
+    if (!keyRes.ok) return { ok: false, reason: "server", detail: `vapid-key ${keyRes.status}` };
     const { key } = (await keyRes.json()) as { key: string };
-    if (!key) return false;
+    if (!key) return { ok: false, reason: "server", detail: "empty key" };
     const subscription = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(key),
@@ -30,9 +36,9 @@ export async function subscribeToPush(soldier: Soldier): Promise<boolean> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ soldier_name: soldier.name, pkal: soldier.pkal, subscription }),
     });
-    return true;
-  } catch {
-    return false;
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: "error", detail: String(e) };
   }
 }
 
