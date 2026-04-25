@@ -103,4 +103,12 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
+  getConfig: () => request<Record<string, string>>("/config"),
+
+  setConfig: (key: string, value: string) =>
+    request<{ ok: boolean }>(`/config/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      body: JSON.stringify({ value }),
+    }),
 };

@@ -59,6 +59,7 @@ export async function initDb(): Promise<void> {
       body TEXT NOT NULL,
       sent_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '');
   `);
   await query(`
     ALTER TABLE requests ADD COLUMN IF NOT EXISTS departure_time TEXT NOT NULL DEFAULT '';

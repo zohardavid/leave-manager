@@ -61,6 +61,17 @@ function calendarWeeks(year: number, month: number) {
 
 const inputCls = "w-full border-0 bg-gray-100/50 rounded-2xl px-4 py-3.5 text-base outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-[#4b6043] focus:bg-white transition-all placeholder:text-gray-400";
 
+const EQUIP_KEYS = ["mispar_ishi", "tzz_neshek", "tzz_kavanot2", "tzz_kavanot_m5", "tzz_amrel", "tzz_kesher", "tzz_nosaf"] as const;
+const DEFAULT_FIELD_LABELS: Record<string, string> = {
+  mispar_ishi: 'מ"א',
+  tzz_neshek: "צ' נשק",
+  tzz_kavanot2: "צ' כוונת 2",
+  tzz_kavanot_m5: "צ' כוונת M5",
+  tzz_amrel: "צ' אמרל",
+  tzz_kesher: "צ' קשר",
+  tzz_nosaf: "צ' נוסף",
+};
+
 type Tab = "home" | "requests" | "calendar";
 
 export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; onLogout: () => void; }) {
@@ -69,11 +80,16 @@ export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; on
   const [swaps, setSwaps] = useState<Swap[]>([]);
   const [pushEnabled, setPushEnabled] = useState(() => localStorage.getItem("lm_push_enabled") !== "false");
 
+  const [fieldLabels, setFieldLabels] = useState<Record<string, string>>(DEFAULT_FIELD_LABELS);
+
   const load = useCallback(async () => {
     try {
-      const [myReqs, swps] = await Promise.all([api.getRequests(soldier.name), api.getSwaps()]);
+      const [myReqs, swps, cfg] = await Promise.all([api.getRequests(soldier.name), api.getSwaps(), api.getConfig().catch(() => ({}) as Record<string, string>)]);
       setRequests(myReqs);
       setSwaps(swps);
+      if (cfg["field_labels"]) {
+        try { setFieldLabels({ ...DEFAULT_FIELD_LABELS, ...(JSON.parse(cfg["field_labels"]) as Record<string, string>) }); } catch { /* use defaults */ }
+      }
     } catch { /* silent */ }
   }, [soldier.name]);
 
@@ -139,7 +155,7 @@ export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; on
 
       <main className="flex-1 overflow-y-auto px-6 pt-6 pb-32">
         {tab === "home" && (
-          <HomeTab soldier={soldierData} daysApproved={daysApproved} daysLeft={daysLeft} requestCount={requests.length} todayDisplay={todayDisplay} countdownLabel={countdownLabel} onSoldierUpdate={handleEquipmentUpdate} />
+          <HomeTab soldier={soldierData} daysApproved={daysApproved} daysLeft={daysLeft} requestCount={requests.length} todayDisplay={todayDisplay} countdownLabel={countdownLabel} onSoldierUpdate={handleEquipmentUpdate} fieldLabels={fieldLabels} />
         )}
 
         {tab === "requests" && (
@@ -164,23 +180,13 @@ export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; on
   );
 }
 
-const EQUIP_FIELDS = [
-  { key: "mispar_ishi", label: 'מ"א' },
-  { key: "tzz_neshek", label: "צ' נשק" },
-  { key: "tzz_kavanot2", label: "צ' כוונת 2" },
-  { key: "tzz_kavanot_m5", label: "צ' כוונת M5" },
-  { key: "tzz_amrel", label: "צ' אמרל" },
-  { key: "tzz_kesher", label: "צ' קשר" },
-  { key: "tzz_nosaf", label: "צ' נוסף" },
-] as const;
-
-function HomeTab({ soldier, daysApproved, daysLeft, requestCount, todayDisplay, countdownLabel, onSoldierUpdate }: any) {
+function HomeTab({ soldier, daysApproved, daysLeft, requestCount, todayDisplay, countdownLabel, onSoldierUpdate, fieldLabels }: any) {
   const [editingEquip, setEditingEquip] = useState(false);
   const [equipData, setEquipData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
   const openEdit = () => {
-    setEquipData(Object.fromEntries(EQUIP_FIELDS.map(({ key }) => [key, soldier[key] ?? ""])));
+    setEquipData(Object.fromEntries(EQUIP_KEYS.map((key) => [key, soldier[key] ?? ""])));
     setEditingEquip(true);
   };
 
@@ -237,14 +243,14 @@ function HomeTab({ soldier, daysApproved, daysLeft, requestCount, todayDisplay, 
 
         {editingEquip ? (
           <div className="space-y-3">
-            {EQUIP_FIELDS.map(({ key, label }) => (
+            {EQUIP_KEYS.map((key) => (
               <div key={key}>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{label}</label>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{fieldLabels[key]}</label>
                 <input
                   value={equipData[key] ?? ""}
                   onChange={(e) => setEquipData((d) => ({ ...d, [key]: e.target.value }))}
                   className={inputCls}
-                  placeholder={`הזן ${label}...`}
+                  placeholder={`הזן ${fieldLabels[key]}...`}
                 />
               </div>
             ))}
@@ -258,9 +264,9 @@ function HomeTab({ soldier, daysApproved, daysLeft, requestCount, todayDisplay, 
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-            {EQUIP_FIELDS.map(({ key, label }) => (
+            {EQUIP_KEYS.map((key) => (
               <div key={key}>
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">{label}</div>
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">{fieldLabels[key]}</div>
                 <div className="text-sm font-black text-[#2d3a2e] truncate">
                   {(soldier[key] as string | undefined)?.trim() || <span className="text-gray-200 font-medium">—</span>}
                 </div>

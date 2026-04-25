@@ -8,6 +8,7 @@ import roundsRouter from "./rounds.js";
 import swapsRouter from "./swaps.js";
 import pushRouter from "./push.js";
 import notificationsRouter from "./notifications.js";
+import configRouter from "./config.js";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use("/rounds", roundsRouter);
 router.use("/swaps", swapsRouter);
 router.use("/push", pushRouter);
 router.use("/notifications", notificationsRouter);
+router.use("/config", configRouter);
 
 export default router;
