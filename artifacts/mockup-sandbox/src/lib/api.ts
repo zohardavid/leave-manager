@@ -98,7 +98,7 @@ export const api = {
   sendNotification: (data: { target: string; title: string; body: string }) =>
     request<{ ok: boolean }>("/notifications", { method: "POST", body: JSON.stringify(data) }),
 
-  updateSoldier: (oldName: string, data: { name?: string; pkal?: string; password?: string }) =>
+  updateSoldier: (oldName: string, data: { name?: string; pkal?: string; password?: string; mispar_ishi?: string; tzz_neshek?: string; tzz_kavanot2?: string; tzz_kavanot_m5?: string; tzz_amrel?: string; tzz_kesher?: string; tzz_nosaf?: string }) =>
     request<Soldier>(`/soldiers/${encodeURIComponent(oldName)}`, {
       method: "PUT",
       body: JSON.stringify(data),

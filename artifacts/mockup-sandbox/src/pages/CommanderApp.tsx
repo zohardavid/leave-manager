@@ -5,7 +5,7 @@ import { api } from "../lib/api";
 import { toast } from "sonner";
 import { countLeaveDays } from "./SoldierApp";
 import { subscribeToPush, unsubscribeFromPush } from "../lib/pushUtils";
-import { IconClipboard, IconCalendar, IconUsers, IconBell, IconBellSlash, IconCog } from "../lib/icons";
+import { IconClipboard, IconCalendar, IconUsers, IconBell, IconBellSlash, IconCog, IconBarChart } from "../lib/icons";
 
 const STATUS_LABEL: Record<string, string> = { Pending: "ממתין", Approved: "אושר", Denied: "נדחה", Replaced: "הוחלף", Modified: "בתהליך תיקון" };
 const STATUS_BG: Record<string, string> = {
@@ -34,7 +34,7 @@ function fmt(d: string) {
 const inputCls = "w-full border-0 bg-gray-100/50 rounded-2xl px-4 py-3.5 text-base outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-[#4b6043] focus:bg-white transition-all placeholder:text-gray-400";
 
 export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; onLogout: () => void; }) {
-  const [tab, setTab] = useState<"calendar" | "history" | "soldiers" | "manage" | "notifications">("calendar");
+  const [tab, setTab] = useState<"calendar" | "history" | "soldiers" | "manage" | "notifications" | "equipment">("calendar");
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [swaps, setSwaps] = useState<Swap[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
@@ -125,6 +125,7 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
     { id: "calendar", label: "לוח ניהול", Icon: IconCalendar },
     { id: "history", label: "היסטוריה", Icon: IconClipboard },
     { id: "soldiers", label: "סד״כ", Icon: IconUsers },
+    { id: "equipment", label: "ציוד", Icon: IconBarChart },
     { id: "notifications", label: "התראות", Icon: IconBell },
     { id: "manage", label: "ניהול", Icon: IconCog },
   ] as const;
@@ -134,7 +135,7 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
       <header className="bg-[#4b6043] text-white px-6 py-4 shrink-0 flex items-center justify-between z-30 shadow-sm">
         <div>
           <div className="font-black text-xl tracking-tight">{soldier.name}</div>
-          <div className="text-white/60 text-[10px] font-bold uppercase tracking-widest mt-0.5">מפקד מחלקה</div>
+          <div className="text-white/60 text-[10px] font-bold uppercase tracking-widest mt-0.5">{soldier.pkal}</div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -171,6 +172,7 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
             {tab === "calendar" && <CalendarTab calMonth={calMonth} setCalMonth={setCalMonth} calDays={calDays} firstDay={firstDay} soldiers={soldiers} requests={requests} swaps={swaps} noteMap={noteMap} setNoteMap={setNoteMap} onRequest={handleRequest} onSwap={handleSwap} onEdit={handleEdit} />}
             {tab === "history" && <HistoryTab requests={requests} soldiers={soldiers} />}
             {tab === "soldiers" && <SoldiersTab stats={soldierStats} requests={requests} />}
+            {tab === "equipment" && <EquipmentTab soldiers={soldiers} />}
             {tab === "notifications" && <NotificationsTab notifications={notifications} soldiers={soldiers} onSend={handleSendNotification} />}
             {tab === "manage" && <ManageTab soldiers={soldiers} onDelete={handleDelete} onUpdate={handleUpdateSoldier} />}
           </>
@@ -535,6 +537,58 @@ function SoldiersTab({ stats, requests }: any) {
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Equipment Tab ──────────────────────────────────────────────────────────────
+const EQUIP_FIELDS = [
+  { key: "mispar_ishi", label: 'מ"א' },
+  { key: "tzz_neshek", label: "צ' נשק" },
+  { key: "tzz_kavanot2", label: "צ' כוונת 2" },
+  { key: "tzz_kavanot_m5", label: "צ' כוונת M5" },
+  { key: "tzz_amrel", label: "צ' אמרל" },
+  { key: "tzz_kesher", label: "צ' קשר" },
+  { key: "tzz_nosaf", label: "צ' נוסף" },
+] as const;
+
+function EquipmentTab({ soldiers }: { soldiers: any[] }) {
+  const [search, setSearch] = useState("");
+  const filtered = soldiers.filter((s) => s.name.includes(search) || !search);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-[2rem] p-4 shadow-sm border border-white">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="חפש חייל..."
+          className="w-full border-0 bg-gray-100/50 rounded-2xl px-4 py-3 text-sm outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-[#4b6043] transition-all"
+        />
+      </div>
+
+      {filtered.map((s) => (
+        <div key={s.name} className="bg-white rounded-[2rem] p-5 shadow-sm border border-white">
+          <div className="mb-3">
+            <div className="font-black text-[#2d3a2e] text-base">{s.name}</div>
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{s.pkal}</div>
+          </div>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+            {EQUIP_FIELDS.map(({ key, label }) => (
+              <div key={key}>
+                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{label}</div>
+                <div className="text-xs font-black text-[#2d3a2e] mt-0.5 truncate">
+                  {(s[key] as string | undefined)?.trim() || <span className="text-gray-200 font-medium">—</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {filtered.length === 0 && (
+        <div className="text-center text-gray-400 py-16 font-bold text-sm">לא נמצאו חיילים</div>
+      )}
     </div>
   );
 }

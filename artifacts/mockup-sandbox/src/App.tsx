@@ -25,7 +25,7 @@ export default function App() {
 
   const handleLogin = (soldier: Soldier, token: string) => {
     const role: "soldier" | "commander" =
-      soldier.pkal === "מפקד מחלקה" ? "commander" : "soldier";
+      soldier.pkal === "מפקד מחלקה" || soldier.pkal === "סמל" ? "commander" : "soldier";
     const s: Session = { soldier, role };
     setSession(s);
     localStorage.setItem("lm_session", JSON.stringify(s));

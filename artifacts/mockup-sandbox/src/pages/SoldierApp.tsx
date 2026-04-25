@@ -79,6 +79,22 @@ export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; on
 
   useEffect(() => { void load(); }, [load]);
 
+  const [soldierData, setSoldierData] = useState<Soldier>(soldier);
+
+  const handleEquipmentUpdate = async (data: Record<string, string>) => {
+    try {
+      const updated = await api.updateSoldier(soldierData.name, data);
+      setSoldierData(updated);
+      const raw = localStorage.getItem("lm_session");
+      if (raw) {
+        const s = JSON.parse(raw) as { soldier: Soldier; role: string };
+        s.soldier = updated;
+        localStorage.setItem("lm_session", JSON.stringify(s));
+      }
+      toast.success("הציוד עודכן בהצלחה ✅");
+    } catch { toast.error("שגיאה בעדכון הציוד"); }
+  };
+
   const daysApproved = requests.filter((r) => r.status === "Approved").reduce((sum, r) => sum + countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time), 0);
   
   const todayMidnight = new Date();
@@ -123,7 +139,7 @@ export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; on
 
       <main className="flex-1 overflow-y-auto px-6 pt-6 pb-32">
         {tab === "home" && (
-          <HomeTab soldier={soldier} daysApproved={daysApproved} daysLeft={daysLeft} requestCount={requests.length} todayDisplay={todayDisplay} countdownLabel={countdownLabel} />
+          <HomeTab soldier={soldierData} daysApproved={daysApproved} daysLeft={daysLeft} requestCount={requests.length} todayDisplay={todayDisplay} countdownLabel={countdownLabel} onSoldierUpdate={handleEquipmentUpdate} />
         )}
 
         {tab === "requests" && (
@@ -148,7 +164,34 @@ export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; on
   );
 }
 
-function HomeTab({ soldier, daysApproved, daysLeft, requestCount, todayDisplay, countdownLabel }: any) {
+const EQUIP_FIELDS = [
+  { key: "mispar_ishi", label: 'מ"א' },
+  { key: "tzz_neshek", label: "צ' נשק" },
+  { key: "tzz_kavanot2", label: "צ' כוונת 2" },
+  { key: "tzz_kavanot_m5", label: "צ' כוונת M5" },
+  { key: "tzz_amrel", label: "צ' אמרל" },
+  { key: "tzz_kesher", label: "צ' קשר" },
+  { key: "tzz_nosaf", label: "צ' נוסף" },
+] as const;
+
+function HomeTab({ soldier, daysApproved, daysLeft, requestCount, todayDisplay, countdownLabel, onSoldierUpdate }: any) {
+  const [editingEquip, setEditingEquip] = useState(false);
+  const [equipData, setEquipData] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+
+  const openEdit = () => {
+    setEquipData(Object.fromEntries(EQUIP_FIELDS.map(({ key }) => [key, soldier[key] ?? ""])));
+    setEditingEquip(true);
+  };
+
+  const saveEquipment = async () => {
+    setSaving(true);
+    try {
+      await onSoldierUpdate(equipData);
+      setEditingEquip(false);
+    } finally { setSaving(false); }
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-white flex justify-between items-center">
@@ -176,6 +219,55 @@ function HomeTab({ soldier, daysApproved, daysLeft, requestCount, todayDisplay, 
           <div className="text-3xl font-black text-[#2d3a2e]">{requestCount}</div>
           <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-2">בקשות הוגשו</div>
         </div>
+      </div>
+
+      <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-white">
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ציוד אישי</div>
+          {!editingEquip ? (
+            <button onClick={openEdit} className="text-[10px] font-black text-[#4b6043] uppercase tracking-widest bg-[#4b6043]/5 px-3 py-1.5 rounded-xl active:scale-95 transition-all">
+              עריכה ✏️
+            </button>
+          ) : (
+            <button onClick={() => setEditingEquip(false)} className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              ביטול
+            </button>
+          )}
+        </div>
+
+        {editingEquip ? (
+          <div className="space-y-3">
+            {EQUIP_FIELDS.map(({ key, label }) => (
+              <div key={key}>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{label}</label>
+                <input
+                  value={equipData[key] ?? ""}
+                  onChange={(e) => setEquipData((d) => ({ ...d, [key]: e.target.value }))}
+                  className={inputCls}
+                  placeholder={`הזן ${label}...`}
+                />
+              </div>
+            ))}
+            <button
+              onClick={() => void saveEquipment()}
+              disabled={saving}
+              className="w-full bg-[#4b6043] text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-[#4b6043]/20 disabled:opacity-50 active:scale-[0.98] transition-all mt-2"
+            >
+              {saving ? "שומר..." : "שמור שינויים"}
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+            {EQUIP_FIELDS.map(({ key, label }) => (
+              <div key={key}>
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">{label}</div>
+                <div className="text-sm font-black text-[#2d3a2e] truncate">
+                  {(soldier[key] as string | undefined)?.trim() || <span className="text-gray-200 font-medium">—</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
