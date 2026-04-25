@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { requireAuth } from "../middlewares/auth.js";
 import healthRouter from "./health.js";
 import authRouter from "./auth.js";
 import requestsRouter from "./requests.js";
@@ -12,6 +13,9 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/auth", authRouter);
+
+// All routes below require a valid JWT
+router.use(requireAuth);
 router.use("/requests", requestsRouter);
 router.use("/soldiers", soldiersRouter);
 router.use("/rounds", roundsRouter);

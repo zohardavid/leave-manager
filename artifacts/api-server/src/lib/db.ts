@@ -63,5 +63,6 @@ export async function initDb(): Promise<void> {
   await query(`
     ALTER TABLE requests ADD COLUMN IF NOT EXISTS departure_time TEXT NOT NULL DEFAULT '';
     ALTER TABLE requests ADD COLUMN IF NOT EXISTS return_time TEXT NOT NULL DEFAULT '';
+    ALTER TABLE soldiers ADD COLUMN IF NOT EXISTS pwd_hashed BOOLEAN NOT NULL DEFAULT false;
   `);
 }

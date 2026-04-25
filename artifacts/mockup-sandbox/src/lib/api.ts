@@ -10,11 +10,22 @@ import type {
 
 const API_BASE = (import.meta.env["VITE_API_URL"] as string | undefined) ?? "";
 
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem("lm_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}/api${url}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     ...options,
   });
+  if (res.status === 401) {
+    localStorage.removeItem("lm_token");
+    localStorage.removeItem("lm_session");
+    window.location.reload();
+    return undefined as T;
+  }
   if (res.status === 204) return undefined as T;
   const body = (await res.json()) as T & { error?: string };
   if (!res.ok) throw new Error((body as { error?: string }).error ?? "שגיאה");
@@ -23,26 +34,20 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   login: (name: string, password: string) =>
-    request<{ soldier: Soldier }>("/auth/login", {
+    request<{ soldier: Soldier; token: string }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ name, password }),
     }),
 
-  register: (
-    name: string,
-    pkal: string,
-    password: string,
-    masterKey?: string,
-  ) =>
-    request<{ soldier: Soldier }>("/auth/register", {
+  register: (name: string, pkal: string, password: string, masterKey?: string) =>
+    request<{ soldier: Soldier; token: string }>("/auth/register", {
       method: "POST",
       body: JSON.stringify({ name, pkal, password, masterKey }),
     }),
 
   getRequests: (soldier?: string) =>
     request<LeaveRequest[]>(
-      "/requests" +
-        (soldier ? `?soldier=${encodeURIComponent(soldier)}` : ""),
+      "/requests" + (soldier ? `?soldier=${encodeURIComponent(soldier)}` : ""),
     ),
 
   createRequest: (data: {
@@ -53,28 +58,16 @@ export const api = {
     departure_time?: string;
     return_time?: string;
   }) =>
-    request<LeaveRequest>("/requests", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
+    request<LeaveRequest>("/requests", { method: "POST", body: JSON.stringify(data) }),
 
-  updateRequest: (
-    id: number,
-    data: { status: RequestStatus; commander_note?: string },
-  ) =>
-    request<LeaveRequest>(`/requests/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
+  updateRequest: (id: number, data: { status: RequestStatus; commander_note?: string }) =>
+    request<LeaveRequest>(`/requests/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
   editRequest: (
     id: number,
     data: { start_date: string; end_date: string; reason: string; departure_time?: string; return_time?: string },
   ) =>
-    request<LeaveRequest>(`/requests/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    }),
+    request<LeaveRequest>(`/requests/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
 
   deleteRequest: (id: number) =>
     request<void>(`/requests/${id}`, { method: "DELETE" }),
@@ -82,9 +75,7 @@ export const api = {
   getSoldiers: () => request<Soldier[]>("/soldiers"),
 
   deleteSoldier: (name: string) =>
-    request<void>(`/soldiers/${encodeURIComponent(name)}`, {
-      method: "DELETE",
-    }),
+    request<void>(`/soldiers/${encodeURIComponent(name)}`, { method: "DELETE" }),
 
   getRounds: () => request<Round[]>("/rounds"),
 
@@ -92,39 +83,22 @@ export const api = {
     request<Round>("/rounds", { method: "POST", body: JSON.stringify(data) }),
 
   updateRound: (idx: number, data: { status: RoundStatus }) =>
-    request<Round>(`/rounds/${idx}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
+    request<Round>(`/rounds/${idx}`, { method: "PUT", body: JSON.stringify(data) }),
 
   getSwaps: () => request<Swap[]>("/swaps"),
 
-  createSwap: (data: {
-    requester: string;
-    partner: string;
-    start_date: string;
-    end_date: string;
-  }) =>
+  createSwap: (data: { requester: string; partner: string; start_date: string; end_date: string }) =>
     request<Swap>("/swaps", { method: "POST", body: JSON.stringify(data) }),
 
   updateSwap: (id: number, data: { status: RequestStatus }) =>
-    request<Swap>(`/swaps/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
+    request<Swap>(`/swaps/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
   getNotifications: () => request<AppNotification[]>("/notifications"),
 
   sendNotification: (data: { target: string; title: string; body: string }) =>
-    request<{ ok: boolean }>("/notifications", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
+    request<{ ok: boolean }>("/notifications", { method: "POST", body: JSON.stringify(data) }),
 
-  updateSoldier: (
-    oldName: string,
-    data: { name?: string; pkal?: string; password?: string },
-  ) =>
+  updateSoldier: (oldName: string, data: { name?: string; pkal?: string; password?: string }) =>
     request<Soldier>(`/soldiers/${encodeURIComponent(oldName)}`, {
       method: "PUT",
       body: JSON.stringify(data),

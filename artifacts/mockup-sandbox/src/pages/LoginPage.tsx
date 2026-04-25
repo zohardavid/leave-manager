@@ -17,7 +17,7 @@ const inputCls =
 export default function LoginPage({
   onLogin,
 }: {
-  onLogin: (s: Soldier) => void;
+  onLogin: (s: Soldier, token: string) => void;
 }) {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
@@ -57,8 +57,8 @@ export default function LoginPage({
     e.preventDefault();
     setLoading(true);
     try {
-      const { soldier } = await api.login(loginName.trim(), loginPw);
-      onLogin(soldier);
+      const { soldier, token } = await api.login(loginName.trim(), loginPw);
+      onLogin(soldier, token);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "שגיאה");
     } finally {
@@ -70,13 +70,13 @@ export default function LoginPage({
     e.preventDefault();
     setLoading(true);
     try {
-      const { soldier } = await api.register(
+      const { soldier, token } = await api.register(
         regName.trim(),
         regPkal,
         regPw,
         regPkal === "מפקד מחלקה" ? masterKey : undefined,
       );
-      onLogin(soldier);
+      onLogin(soldier, token);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "שגיאה");
     } finally {

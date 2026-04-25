@@ -23,12 +23,13 @@ function loadSession(): Session | null {
 export default function App() {
   const [session, setSession] = useState<Session | null>(loadSession);
 
-  const handleLogin = (soldier: Soldier) => {
+  const handleLogin = (soldier: Soldier, token: string) => {
     const role: "soldier" | "commander" =
       soldier.pkal === "מפקד מחלקה" ? "commander" : "soldier";
     const s: Session = { soldier, role };
     setSession(s);
     localStorage.setItem("lm_session", JSON.stringify(s));
+    localStorage.setItem("lm_token", token);
     if (localStorage.getItem("lm_push_enabled") !== "false") {
       void subscribeToPush(soldier);
     }
@@ -37,11 +38,12 @@ export default function App() {
   const handleLogout = () => {
     setSession(null);
     localStorage.removeItem("lm_session");
+    localStorage.removeItem("lm_token");
   };
 
   return (
     <div dir="rtl" className="h-dvh flex flex-col bg-gray-100 overflow-hidden select-none">
-      {!session && <LoginPage onLogin={handleLogin} />}
+      {!session && <LoginPage onLogin={(s, t) => handleLogin(s, t)} />}
       {session?.role === "soldier" && (
         <SoldierApp soldier={session.soldier} onLogout={handleLogout} />
       )}
