@@ -56,6 +56,11 @@ router.put("/:id", async (req, res) => {
     departure_time?: string;
     return_time?: string;
   };
+  const prev = await query("SELECT status, soldier_name FROM requests WHERE id = $1", [id]);
+  if (prev.rows.length === 0) {
+    res.status(404).json({ error: "בקשה לא נמצאה" });
+    return;
+  }
   const result = await query(
     `UPDATE requests SET
        status = COALESCE($1, status),
@@ -65,12 +70,14 @@ router.put("/:id", async (req, res) => {
      WHERE id = $5 RETURNING *`,
     [status ?? null, commander_note ?? null, departure_time ?? null, return_time ?? null, id],
   );
-  if (result.rows.length === 0) {
-    res.status(404).json({ error: "בקשה לא נמצאה" });
-    return;
-  }
   const updated = result.rows[0] as { soldier_name: string; status: string };
-  if (status === "Approved") {
+  const previousStatus = (prev.rows[0] as { status: string }).status;
+
+  if (status === "Modified") {
+    void notifySoldier(updated.soldier_name, "המפקד ערך את בקשתך ✏️", "בקשת היציאה שלך עודכנה. אנא כנס לאפליקציה ואשר את השינויים.");
+  } else if (status === "Approved" && previousStatus === "Modified") {
+    void notifyCommanders("חייל אישר שינוי ✅", `${updated.soldier_name} אישר את התיקון לבקשת היציאה`);
+  } else if (status === "Approved") {
     void notifySoldier(updated.soldier_name, "הבקשה אושרה ✅", "בקשת היציאה שלך אושרה על ידי המפקד");
   } else if (status === "Denied") {
     void notifySoldier(updated.soldier_name, "הבקשה נדחתה ❌", "בקשת היציאה שלך נדחתה על ידי המפקד");
@@ -93,9 +100,7 @@ router.patch("/:id", async (req, res) => {
        end_date = COALESCE($2, end_date),
        reason = COALESCE($3, reason),
        departure_time = COALESCE($4, departure_time),
-       return_time = COALESCE($5, return_time),
-       status = 'Pending',
-       commander_note = ''
+       return_time = COALESCE($5, return_time)
      WHERE id = $6 RETURNING *`,
     [start_date ?? null, end_date ?? null, reason?.trim() ?? null, departure_time ?? null, return_time ?? null, id],
   );

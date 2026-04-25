@@ -31,11 +31,12 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-const STATUS_LABEL: Record<string, string> = { Pending: "ממתינה 🟡", Approved: "אושרה ✅", Denied: "נדחתה ❌" };
+const STATUS_LABEL: Record<string, string> = { Pending: "ממתינה 🟡", Approved: "אושרה ✅", Denied: "נדחתה ❌", Modified: "עודכנה ✏️" };
 const STATUS_COLOR: Record<string, string> = {
   Pending: "bg-yellow-50/50 border-yellow-100 text-yellow-700",
   Approved: "bg-green-50/50 border-green-100 text-green-700",
   Denied: "bg-red-50/50 border-red-100 text-red-700",
+  Modified: "bg-blue-50/50 border-blue-100 text-blue-700",
 };
 
 const MONTH_NAMES: Record<number, string> = { 4: "אפריל", 5: "מאי", 6: "יוני", 7: "יולי" };
@@ -219,8 +220,29 @@ function RequestsTab({ soldier, requests, swaps, onRefresh }: any) {
       await api.deleteRequest(id);
       toast.success("הבקשה נמחקה");
       await onRefresh();
-    } catch (err) { toast.error("שגיאה במחיקה"); }
+    } catch { toast.error("שגיאה במחיקה"); }
   };
+
+  const handleConfirmEdit = async (id: number) => {
+    try {
+      await api.updateRequest(id, { status: "Approved" });
+      toast.success("אישרת את השינוי ✅");
+      await onRefresh();
+    } catch { toast.error("שגיאה באישור"); }
+  };
+
+  const handleTalkRequest = async (soldierName: string, requestId: number) => {
+    try {
+      await api.sendNotification({
+        target: "commanders",
+        title: `📞 ${soldierName} רוצה לדבר`,
+        body: `${soldierName} מבקש לדבר איתך לגבי תיקון בקשת היציאה (בקשה #${requestId})`,
+      });
+      toast.success("הודעה נשלחה למפקד — הוא יחזור אליך");
+    } catch { toast.error("שגיאה בשליחת ההודעה"); }
+  };
+
+  const modifiedRequests = requests.filter((r: any) => r.status === "Modified");
 
   const submitSwap = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -235,6 +257,39 @@ function RequestsTab({ soldier, requests, swaps, onRefresh }: any) {
 
   return (
     <div className="space-y-6">
+      {/* בקשות שהמפקד תיקן — דורשות תגובה */}
+      {modifiedRequests.length > 0 && (
+        <div className="bg-blue-50 border border-blue-100 rounded-[2rem] p-5 space-y-4">
+          <div className="text-[10px] font-black text-blue-700 uppercase tracking-widest">✏️ המפקד תיקן בקשה — נדרשת תגובתך</div>
+          {modifiedRequests.map((r: any) => (
+            <div key={r.id} className="bg-white rounded-[1.5rem] p-5 space-y-3 shadow-sm">
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="text-sm font-black text-[#2d3a2e]">{r.start_date} – {r.end_date}</div>
+                  <div className="text-[10px] font-bold text-gray-500 mt-0.5">
+                    {r.departure_time ? `יציאה: ${r.departure_time} • ` : ""}{r.return_time ? `חזרה: ${r.return_time} • ` : ""}{r.reason}
+                  </div>
+                </div>
+                <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">עודכנה</span>
+              </div>
+              {r.commander_note && (
+                <div className="bg-[#4b6043]/5 border border-[#4b6043]/10 rounded-xl p-3 text-sm text-[#2d3a2e] italic">
+                  💬 המפקד: "{r.commander_note}"
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => void handleConfirmEdit(r.id)} className="flex-1 bg-[#4b6043] text-white py-2.5 rounded-xl text-xs font-black shadow-md shadow-[#4b6043]/20 active:scale-95 transition-all">
+                  אשר שינוי ✅
+                </button>
+                <button onClick={() => void handleTalkRequest(soldier.name, r.id)} className="flex-1 bg-white border border-gray-200 text-gray-700 py-2.5 rounded-xl text-xs font-black active:scale-95 transition-all">
+                  רוצה לדבר 📞
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex bg-gray-100/80 p-1.5 rounded-2xl">
         {([ { key: "new", label: "בקשה חדשה" }, { key: "history", label: "הבקשות שלי" }, { key: "swap", label: "החלפה" } ] as const).map((t) => (
           <button key={t.key} onClick={() => setView(t.key)} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${view === t.key ? "bg-white shadow-sm text-[#4b6043]" : "text-gray-400"}`}>

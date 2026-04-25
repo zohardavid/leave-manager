@@ -69,22 +69,13 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
     } catch { toast.error("שגיאה בעדכון ההחלפה"); }
   };
 
-  const handleEdit = async (id: number, data: any, targetSoldier: string) => {
+  const handleEdit = async (id: number, data: any, _targetSoldier: string) => {
     const { commander_note, ...editFields } = data;
     try {
-      let updated = await api.editRequest(id, editFields);
-      if (commander_note) {
-        updated = await api.updateRequest(id, { status: updated.status, commander_note });
-      }
+      await api.editRequest(id, editFields);
+      const updated = await api.updateRequest(id, { status: "Modified", commander_note: commander_note ?? "" });
       setRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
-      toast.success("הבקשה עודכנה");
-      try {
-        await api.sendNotification({
-          target: targetSoldier,
-          title: "עדכון בבקשת היציאה",
-          body: "המפקד הציע שינוי לבקשת היציאה שלך. אנא בדוק את הפרטים החדשים.",
-        });
-      } catch { /* notification failure is non-critical */ }
+      toast.success("הבקשה עודכנה ונשלחה לאישור החייל");
     } catch { toast.error("שגיאה בעדכון הבקשה"); }
   };
 

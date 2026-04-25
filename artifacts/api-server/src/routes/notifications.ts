@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { query } from "../lib/db.js";
-import { notifyAll, notifySoldier } from "../lib/push.js";
+import { notifyAll, notifySoldier, notifyCommanders } from "../lib/push.js";
 
 const router = Router();
 
@@ -21,6 +21,8 @@ router.post("/", async (req, res) => {
   }
   if (target === "all") {
     await notifyAll(title.trim(), body.trim());
+  } else if (target === "commanders") {
+    await notifyCommanders(title.trim(), body.trim());
   } else {
     await notifySoldier(target, title.trim(), body.trim());
   }

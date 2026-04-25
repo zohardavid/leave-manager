@@ -1,4 +1,4 @@
-export type RequestStatus = "Pending" | "Approved" | "Denied";
+export type RequestStatus = "Pending" | "Approved" | "Denied" | "Modified";
 
 export const PKALS = [
   "לוחם", "חובש", "קשר", "מטול", "קלע", "איבו", "אבטה", "נגב", "מאג", "מפקד מחלקה",
