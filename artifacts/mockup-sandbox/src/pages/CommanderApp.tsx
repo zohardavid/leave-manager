@@ -5,11 +5,11 @@ import { api } from "../lib/api";
 import { toast } from "sonner";
 import { countLeaveDays } from "./SoldierApp";
 import { subscribeToPush, unsubscribeFromPush } from "../lib/pushUtils";
-import { IconClipboard, IconCalendar, IconUsers, IconBell, IconBellSlash, IconCog, IconBarChart, IconHome } from "../lib/icons";
+import { IconClipboard, IconCalendar, IconUsers, IconBell, IconBellSlash, IconCog } from "../lib/icons";
 
 const STATUS_LABEL: Record<string, string> = { Pending: "ממתין", Approved: "אושר", Denied: "נדחה", Replaced: "הוחלף" };
 const STATUS_BG: Record<string, string> = {
-  Pending: "bg-yellow-50/50 border-yellow-100 text-yellow-800",
+  Pending: "bg-amber-50/50 border-amber-100 text-amber-800",
   Approved: "bg-green-50/50 border-green-100 text-green-800",
   Denied: "bg-red-50/50 border-red-100 text-red-800",
   Replaced: "bg-gray-50 border-gray-200 text-gray-500",
@@ -30,11 +30,10 @@ function fmt(d: string) {
   return new Date(d).toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit" });
 }
 
-// עיצוב שדות אחיד כמו אצל החייל
 const inputCls = "w-full border-0 bg-gray-100/50 rounded-2xl px-4 py-3.5 text-base outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-[#4b6043] focus:bg-white transition-all placeholder:text-gray-400";
 
 export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; onLogout: () => void; }) {
-  const [tab, setTab] = useState<"requests" | "calendar" | "soldiers" | "manage" | "notifications">("requests");
+  const [tab, setTab] = useState<"calendar" | "history" | "soldiers" | "manage" | "notifications">("calendar");
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [swaps, setSwaps] = useState<Swap[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
@@ -59,7 +58,7 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
       const updated = await api.updateRequest(id, { status, commander_note: noteMap[id] ?? "" });
       setRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
       toast.success(status === "Approved" ? "הבקשה אושרה" : "הבקשה נדחתה");
-    } catch (err) { toast.error("שגיאה בעדכון הבקשה"); }
+    } catch { toast.error("שגיאה בעדכון הבקשה"); }
   };
 
   const handleSwap = async (id: number, status: "Approved" | "Denied") => {
@@ -67,15 +66,22 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
       const updated = await api.updateSwap(id, { status });
       setSwaps((prev) => prev.map((s) => (s.id === id ? updated : s)));
       toast.success(status === "Approved" ? "ההחלפה אושרה" : "ההחלפה נדחתה");
-    } catch (err) { toast.error("שגיאה בעדכון ההחלפה"); }
+    } catch { toast.error("שגיאה בעדכון ההחלפה"); }
   };
 
-  const handleEdit = async (id: number, data: any) => {
+  const handleEdit = async (id: number, data: any, targetSoldier: string) => {
     try {
       const updated = await api.editRequest(id, data);
       setRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
-      toast.success("הבקשה עודכנה");
-    } catch (err) { toast.error("שגיאה בעדכון הבקשה"); }
+      toast.success("בקשת פשרה נשמרה");
+      try {
+        await api.sendNotification({
+          target: targetSoldier,
+          title: "עדכון בבקשת היציאה",
+          body: "המפקד הציע שינוי לבקשת היציאה שלך. אנא בדוק את הפרטים החדשים.",
+        });
+      } catch { /* notification failure is non-critical */ }
+    } catch { toast.error("שגיאה בעדכון הבקשה"); }
   };
 
   const handleDelete = async (name: string) => {
@@ -84,7 +90,7 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
       await api.deleteSoldier(name);
       setSoldiers((prev) => prev.filter((s) => s.name !== name));
       toast.success("החייל נמחק בהצלחה");
-    } catch (err) { toast.error("שגיאה במחיקה"); }
+    } catch { toast.error("שגיאה במחיקה"); }
   };
 
   const handleUpdateSoldier = async (oldName: string, data: any) => {
@@ -92,7 +98,7 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
       const updated = await api.updateSoldier(oldName, data);
       setSoldiers((prev) => prev.map((s) => (s.name === oldName ? updated : s)));
       toast.success("פרופיל החייל עודכן");
-    } catch (err) { toast.error("שגיאה בעדכון פרופיל"); }
+    } catch { toast.error("שגיאה בעדכון פרופיל"); }
   };
 
   const handleSendNotification = async (data: any) => {
@@ -101,7 +107,7 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
       const updated = await api.getNotifications();
       setNotifications(updated);
       toast.success("ההתראה נשלחה בהצלחה");
-    } catch (err) { toast.error("שגיאה בשליחת ההתראה"); }
+    } catch { toast.error("שגיאה בשליחת ההתראה"); }
   };
 
   const pendingRequests = requests.filter((r) => r.status === "Pending");
@@ -113,35 +119,51 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
   const calDays = Array.from({ length: daysInMonth(calMonth) }, (_, i) => i + 1);
 
   const soldierStats = soldiers.map((s) => {
-    const days = requests.filter((r) => r.soldier_name === s.name && r.status === "Approved")
+    const days = requests
+      .filter((r) => r.soldier_name === s.name && r.status === "Approved")
       .reduce((acc, r) => acc + countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time), 0);
     return { ...s, days };
   });
 
   const TABS = [
-    { id: "requests", label: "בקשות", Icon: IconClipboard },
-    { id: "calendar", label: "לוח", Icon: IconCalendar },
-    { id: "soldiers", label: "חיילים", Icon: IconUsers },
+    { id: "calendar", label: "לוח ניהול", Icon: IconCalendar },
+    { id: "history", label: "היסטוריה", Icon: IconClipboard },
+    { id: "soldiers", label: "סד״כ", Icon: IconUsers },
     { id: "notifications", label: "התראות", Icon: IconBell },
     { id: "manage", label: "ניהול", Icon: IconCog },
   ] as const;
 
   return (
     <div className="flex flex-col h-full bg-[#fdfcf9] overflow-hidden">
-      {/* Header מינימליסטי מותאם למפקד */}
       <header className="bg-[#4b6043] text-white px-6 py-4 shrink-0 flex items-center justify-between z-30 shadow-sm">
         <div>
           <div className="font-black text-xl tracking-tight">{soldier.name}</div>
           <div className="text-white/60 text-[10px] font-bold uppercase tracking-widest mt-0.5">מפקד מחלקה</div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={async () => {
-            if (pushEnabled) { await unsubscribeFromPush(soldier.name); setPushEnabled(false); localStorage.setItem("lm_push_enabled", "false"); }
-            else { const r = await subscribeToPush(soldier); setPushEnabled(r.ok); localStorage.setItem("lm_push_enabled", r.ok ? "true" : "false"); }
-          }} className="w-9 h-9 flex items-center justify-center bg-white/10 rounded-xl">
+          <button
+            onClick={async () => {
+              if (pushEnabled) {
+                await unsubscribeFromPush(soldier.name);
+                setPushEnabled(false);
+                localStorage.setItem("lm_push_enabled", "false");
+                toast.info("התראות כובו");
+              } else {
+                const result = await subscribeToPush(soldier);
+                setPushEnabled(result.ok);
+                localStorage.setItem("lm_push_enabled", result.ok ? "true" : "false");
+                if (result.ok) toast.success("התראות הופעלו");
+                else if (result.reason === "unsupported") toast.error("הדפדפן לא תומך בהתראות");
+                else if (result.reason === "denied") toast.error("הרשאת התראות נדחתה");
+                else if (result.reason === "server") toast.error(`שגיאת שרת: ${result.detail ?? ""}`);
+                else toast.error(`שגיאה: ${result.detail ?? ""}`);
+              }
+            }}
+            className="w-9 h-9 flex items-center justify-center bg-white/10 rounded-xl"
+          >
             {pushEnabled ? <IconBell className="w-4 h-4 text-white" /> : <IconBellSlash className="w-4 h-4 opacity-50" />}
           </button>
-          <button onClick={onLogout} className="text-[10px] font-bold bg-white/10 px-3 py-2 rounded-xl border border-white/5 uppercase">יציאה</button>
+          <button onClick={onLogout} className="text-[10px] font-bold bg-white/10 px-3 py-2 rounded-xl border border-white/5 uppercase tracking-widest">יציאה</button>
         </div>
       </header>
 
@@ -150,8 +172,8 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
           <div className="flex items-center justify-center h-40 text-gray-400 font-bold uppercase tracking-widest text-sm animate-pulse">טוען נתונים...</div>
         ) : (
           <>
-            {tab === "requests" && <RequestsTab requests={requests} pendingRequests={pendingRequests} pendingSwaps={pendingSwaps} soldiers={soldiers} noteMap={noteMap} setNoteMap={setNoteMap} onRequest={handleRequest} onSwap={handleSwap} />}
-            {tab === "calendar" && <CalendarTab calMonth={calMonth} setCalMonth={setCalMonth} calDays={calDays} firstDay={firstDay} soldiers={soldiers} requests={requests} onRequest={handleRequest} onEdit={handleEdit} />}
+            {tab === "calendar" && <CalendarTab calMonth={calMonth} setCalMonth={setCalMonth} calDays={calDays} firstDay={firstDay} soldiers={soldiers} requests={requests} swaps={swaps} noteMap={noteMap} setNoteMap={setNoteMap} onRequest={handleRequest} onSwap={handleSwap} onEdit={handleEdit} />}
+            {tab === "history" && <HistoryTab requests={requests} soldiers={soldiers} />}
             {tab === "soldiers" && <SoldiersTab stats={soldierStats} requests={requests} />}
             {tab === "notifications" && <NotificationsTab notifications={notifications} soldiers={soldiers} onSend={handleSendNotification} />}
             {tab === "manage" && <ManageTab soldiers={soldiers} onDelete={handleDelete} onUpdate={handleUpdateSoldier} />}
@@ -159,14 +181,13 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
         )}
       </main>
 
-      {/* תפריט תחתון צף */}
       <nav className="fixed bottom-6 inset-x-4 z-40 bg-white/95 backdrop-blur-md border border-gray-100 rounded-[2rem] flex shadow-xl p-1.5 overflow-x-auto no-scrollbar">
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} className={`flex-1 flex flex-col items-center justify-center py-2 min-w-[60px] transition-all`}>
+          <button key={t.id} onClick={() => setTab(t.id)} className="flex-1 flex flex-col items-center justify-center py-2 min-w-[60px] transition-all">
             <span className={`w-10 h-8 flex items-center justify-center rounded-2xl transition-all relative ${tab === t.id ? "bg-[#4b6043] text-white shadow-lg shadow-[#4b6043]/20" : "text-gray-400"}`}>
               <t.Icon className="w-5 h-5" />
-              {t.id === "requests" && totalPending > 0 && (
-                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white"></span>
+              {(t.id === "calendar" || t.id === "history") && totalPending > 0 && (
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-white" />
               )}
             </span>
             <span className={`text-[9px] mt-1 font-bold ${tab === t.id ? "text-[#4b6043]" : "text-gray-400"}`}>{t.label}</span>
@@ -177,139 +198,8 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
   );
 }
 
-// ── Requests Tab ───────────────────────────────────────────────────────────────
-function RequestsTab({ requests, pendingRequests, pendingSwaps, soldiers, noteMap, setNoteMap, onRequest, onSwap }: any) {
-  const [subTab, setSubTab] = useState<"pending" | "history">("pending");
-  const [filterSoldier, setFilterSoldier] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-
-  const handled = requests.filter((r: any) => r.status !== "Pending");
-  const approvedCount = requests.filter((r: any) => r.status === "Approved").length;
-  const deniedCount = requests.filter((r: any) => r.status === "Denied").length;
-
-  const filteredHistory = [...handled]
-    .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
-    .filter((r) => filterSoldier === "all" || r.soldier_name === filterSoldier)
-    .filter((r) => filterStatus === "all" || r.status === filterStatus);
-
-  return (
-    <div className="space-y-6">
-      {/* מדדים עליונים */}
-      <div className="grid grid-cols-3 gap-3">
-        {[ { label: "ממתינות", value: pendingRequests.length + pendingSwaps.length, color: "text-amber-600" },
-           { label: "אושרו", value: approvedCount, color: "text-green-600" },
-           { label: "נדחו", value: deniedCount, color: "text-red-500" } ].map((s) => (
-          <div key={s.label} className="bg-white rounded-[1.5rem] p-4 shadow-sm border border-white text-center">
-            <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
-            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex bg-gray-100/80 p-1.5 rounded-2xl">
-        {(["pending", "history"] as const).map((t) => (
-          <button key={t} onClick={() => setSubTab(t)} className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${subTab === t ? "bg-white shadow-sm text-[#4b6043]" : "text-gray-400"}`}>
-            {t === "pending" ? "ממתינות לאישור" : "היסטוריה"}
-          </button>
-        ))}
-      </div>
-
-      {subTab === "pending" ? (
-        <div className="space-y-6">
-          {pendingRequests.length > 0 && (
-            <section className="space-y-3">
-              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">בקשות חופשה</h3>
-              {pendingRequests.map((r: any) => (
-                <div key={r.id} className="bg-white rounded-[2rem] p-5 shadow-[0_5px_20px_rgba(0,0,0,0.02)] border border-white space-y-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-black text-lg text-[#2d3a2e]">{r.soldier_name}</div>
-                      <div className="text-xs font-bold text-gray-500 mt-1">{fmt(r.start_date)} – {fmt(r.end_date)} ({countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time)} ימים)</div>
-                      {(r.departure_time || r.return_time) && (
-                        <div className="text-[10px] font-bold text-gray-400 mt-1 uppercase">
-                          {r.departure_time ? `יציאה ${r.departure_time}` : ""} {r.departure_time && r.return_time ? " • " : ""} {r.return_time ? `חזרה ${r.return_time}` : ""}
-                        </div>
-                      )}
-                      <div className="text-sm font-medium text-gray-700 mt-2 bg-gray-50 p-2 rounded-xl">"{r.reason}"</div>
-                    </div>
-                    <span className="text-[10px] font-bold bg-amber-50 text-amber-600 px-3 py-1 rounded-full uppercase tracking-wider">ממתין</span>
-                  </div>
-                  <textarea placeholder="הערת מפקד (אופציונלי)" className={`${inputCls} h-14 text-sm`} value={noteMap[r.id] ?? ""} onChange={(e) => setNoteMap((m: any) => ({ ...m, [r.id]: e.target.value }))} />
-                  <div className="flex gap-3">
-                    <button onClick={() => onRequest(r.id, "Approved")} className="flex-1 bg-[#4b6043] text-white py-3 rounded-2xl text-sm font-black shadow-lg shadow-[#4b6043]/20 active:scale-95 transition-all">אישור</button>
-                    <button onClick={() => onRequest(r.id, "Denied")} className="flex-1 bg-red-50 text-red-600 py-3 rounded-2xl text-sm font-black active:scale-95 transition-all">דחייה</button>
-                  </div>
-                </div>
-              ))}
-            </section>
-          )}
-
-          {pendingSwaps.length > 0 && (
-            <section className="space-y-3">
-              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">בקשות החלפה</h3>
-              {pendingSwaps.map((s: any) => (
-                <div key={s.id} className="bg-white rounded-[2rem] p-5 shadow-[0_5px_20px_rgba(0,0,0,0.02)] border border-white space-y-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-black text-lg text-[#2d3a2e]">{s.requester} ↔ {s.partner}</div>
-                      <div className="text-xs font-bold text-gray-500 mt-1">{fmt(s.start_date)} – {fmt(s.end_date)}</div>
-                    </div>
-                    <span className="text-[10px] font-bold bg-amber-50 text-amber-600 px-3 py-1 rounded-full uppercase tracking-wider">ממתין</span>
-                  </div>
-                  <div className="flex gap-3">
-                    <button onClick={() => onSwap(s.id, "Approved")} className="flex-1 bg-[#4b6043] text-white py-3 rounded-2xl text-sm font-black shadow-lg shadow-[#4b6043]/20 active:scale-95 transition-all">אישור</button>
-                    <button onClick={() => onSwap(s.id, "Denied")} className="flex-1 bg-red-50 text-red-600 py-3 rounded-2xl text-sm font-black active:scale-95 transition-all">דחייה</button>
-                  </div>
-                </div>
-              ))}
-            </section>
-          )}
-
-          {pendingRequests.length === 0 && pendingSwaps.length === 0 && (
-            <div className="text-center text-gray-400 py-16 font-bold text-sm tracking-widest uppercase">הכל נקי! אין בקשות ממתינות 🌴</div>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="flex gap-3">
-            <select value={filterSoldier} onChange={(e) => setFilterSoldier(e.target.value)} className="flex-1 bg-white border-none rounded-2xl px-4 py-3 text-sm font-bold text-gray-600 shadow-sm outline-none">
-              <option value="all">כל החיילים</option>
-              {soldiers.map((s: any) => <option key={s.name} value={s.name}>{s.name}</option>)}
-            </select>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="flex-1 bg-white border-none rounded-2xl px-4 py-3 text-sm font-bold text-gray-600 shadow-sm outline-none">
-              <option value="all">כל הסטטוסים</option>
-              <option value="Approved">אושרו</option>
-              <option value="Denied">נדחו</option>
-            </select>
-          </div>
-
-          {filteredHistory.length === 0 ? (
-            <div className="text-center text-gray-400 py-16 font-bold text-sm">אין תוצאות</div>
-          ) : (
-            filteredHistory.map((r: any) => (
-              <div key={r.id} className={`rounded-[2rem] p-5 shadow-sm border border-white relative overflow-hidden ${STATUS_BG[r.status]}`}>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-black text-[#2d3a2e] text-base">{r.soldier_name}</span>
-                  <span className="text-[10px] font-black uppercase tracking-widest">{STATUS_LABEL[r.status]}</span>
-                </div>
-                <div className="text-xs font-bold text-gray-600">
-                  {fmt(r.start_date)} – {fmt(r.end_date)} ({countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time)} ימים)
-                </div>
-                <div className="text-[10px] font-bold text-gray-500 mt-1 uppercase">
-                  {r.departure_time ? `יציאה: ${r.departure_time} • ` : ""} {r.return_time ? `חזרה: ${r.return_time} • ` : ""} {r.reason}
-                </div>
-                {r.commander_note && <div className="text-xs font-bold text-[#4b6043] mt-3 bg-white/50 p-2 rounded-xl">💬 {r.commander_note}</div>}
-              </div>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Calendar Tab ───────────────────────────────────────────────────────────────
-function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, requests, onRequest, onEdit }: any) {
+function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, requests, swaps, noteMap, setNoteMap, onRequest, onSwap, onEdit }: any) {
   const MONTHS = ["", "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי"];
   const DAYS_HE = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -323,6 +213,8 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
   const pendingOnDay = (day: number) => requests.filter((r: any) => r.status === "Pending" && r.start_date <= dStr(day) && r.end_date >= dStr(day));
   const inDeployment = (day: number) => { const d = new Date(2026, calMonth - 1, day); return d >= DEPLOYMENT_START && d <= DEPLOYMENT_END; };
 
+  const pendingSwaps = swaps.filter((s: any) => s.status === "Pending");
+
   const cellColor = (day: number, isSelected: boolean) => {
     if (isSelected) return "bg-[#4b6043] text-white shadow-lg shadow-[#4b6043]/30";
     if (approvedOnDay(day).length > 0) return "bg-green-50 text-green-700";
@@ -333,7 +225,26 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
 
   return (
     <div className="space-y-6">
-      {/* Month Navigation */}
+      {pendingSwaps.length > 0 && (
+        <div className="bg-amber-50 border border-amber-100 rounded-[2rem] p-5 shadow-sm">
+          <h3 className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-3">בקשות החלפה להחלטה</h3>
+          <div className="space-y-3">
+            {pendingSwaps.map((s: any) => (
+              <div key={s.id} className="bg-white rounded-[1.5rem] p-4 flex justify-between items-center">
+                <div>
+                  <div className="font-black text-sm text-[#2d3a2e]">{s.requester} ↔ {s.partner}</div>
+                  <div className="text-[10px] font-bold text-gray-500 mt-0.5">{fmt(s.start_date)} – {fmt(s.end_date)}</div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => onSwap(s.id, "Approved")} className="bg-[#4b6043] text-white w-8 h-8 rounded-xl flex items-center justify-center font-black">✓</button>
+                  <button onClick={() => onSwap(s.id, "Denied")} className="bg-red-50 text-red-500 w-8 h-8 rounded-xl flex items-center justify-center font-black">✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-white">
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => { setCalMonth(Math.max(4, calMonth - 1)); setSelectedDay(null); setFocusedLeave(null); }} disabled={calMonth <= 4} className="w-10 h-10 flex items-center justify-center bg-gray-50 rounded-2xl text-gray-400 active:scale-90 transition-all">▶</button>
@@ -377,61 +288,93 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
               </span>
             </div>
 
-            {approved.length > 0 && (
+            {pending.length > 0 && (
               <div>
-                <div className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-2">✅ בחופשה ({approved.length})</div>
+                <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-2">⏳ ממתינים להחלטה ({pending.length})</div>
                 <div className="flex flex-wrap gap-2">
-                  {approved.map((r: any) => (
-                    <button key={r.id} onClick={() => setFocusedLeave(focusedLeave?.id === r.id ? null : r)} className={`text-xs px-4 py-2 rounded-2xl font-bold transition-all ${focusedLeave?.id === r.id ? "bg-green-600 text-white" : "bg-green-50 text-green-700 hover:bg-green-100"}`}>{r.soldier_name}</button>
+                  {pending.map((r: any) => (
+                    <button key={r.id} onClick={() => setFocusedLeave(focusedLeave?.id === r.id ? null : r)} className={`text-xs px-4 py-2 rounded-2xl font-bold transition-all ${focusedLeave?.id === r.id ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>{r.soldier_name}</button>
                   ))}
                 </div>
               </div>
             )}
 
-            {pending.length > 0 && (
+            {approved.length > 0 && (
               <div>
-                <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-2">⏳ ממתינים ({pending.length})</div>
+                <div className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-2">✅ מאושרים ({approved.length})</div>
                 <div className="flex flex-wrap gap-2">
-                  {pending.map((r: any) => (
-                    <button key={r.id} onClick={() => setFocusedLeave(focusedLeave?.id === r.id ? null : r)} className={`text-xs px-4 py-2 rounded-2xl font-bold transition-all ${focusedLeave?.id === r.id ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`}>{r.soldier_name}</button>
+                  {approved.map((r: any) => (
+                    <button key={r.id} onClick={() => setFocusedLeave(focusedLeave?.id === r.id ? null : r)} className={`text-xs px-4 py-2 rounded-2xl font-bold transition-all ${focusedLeave?.id === r.id ? "bg-green-600 text-white" : "bg-green-50 text-green-700"}`}>{r.soldier_name}</button>
                   ))}
                 </div>
               </div>
             )}
 
             {focusedLeave && (
-              <div className="bg-[#fdfcf9] border border-gray-100 rounded-[1.5rem] p-4 space-y-4">
+              <div className="bg-[#fdfcf9] border border-gray-100 rounded-[1.5rem] p-5 space-y-4 shadow-inner">
                 {editMode ? (
                   <>
-                    <div className="text-[10px] font-black text-[#4b6043] uppercase tracking-widest">{focusedLeave.soldier_name} — עריכה</div>
+                    <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest">{focusedLeave.soldier_name} — הצעת פשרה / שינוי</div>
                     <div className="grid grid-cols-2 gap-3">
-                      <input type="date" value={editData.start_date} onChange={(e) => setEditData((d) => ({ ...d, start_date: e.target.value }))} className={inputCls} />
-                      <input type="date" value={editData.end_date} onChange={(e) => setEditData((d) => ({ ...d, end_date: e.target.value }))} className={inputCls} />
-                      <input type="time" value={editData.departure_time} onChange={(e) => setEditData((d) => ({ ...d, departure_time: e.target.value }))} className={inputCls} placeholder="יציאה" />
-                      <input type="time" value={editData.return_time} onChange={(e) => setEditData((d) => ({ ...d, return_time: e.target.value }))} className={inputCls} placeholder="חזרה" />
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 mb-1">מתאריך</label>
+                        <input type="date" value={editData.start_date} onChange={(e) => setEditData((d) => ({ ...d, start_date: e.target.value }))} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 mb-1">עד תאריך</label>
+                        <input type="date" value={editData.end_date} onChange={(e) => setEditData((d) => ({ ...d, end_date: e.target.value }))} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 mb-1">יציאה</label>
+                        <input type="time" value={editData.departure_time} onChange={(e) => setEditData((d) => ({ ...d, departure_time: e.target.value }))} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 mb-1">חזרה</label>
+                        <input type="time" value={editData.return_time} onChange={(e) => setEditData((d) => ({ ...d, return_time: e.target.value }))} className={inputCls} />
+                      </div>
                     </div>
                     <input type="text" value={editData.reason} onChange={(e) => setEditData((d) => ({ ...d, reason: e.target.value }))} className={inputCls} placeholder="סיבה" />
-                    <div className="flex gap-3">
-                      <button onClick={async () => { await onEdit(focusedLeave.id, editData); setEditMode(false); setFocusedLeave(null); }} className="flex-1 bg-[#4b6043] text-white py-3 rounded-2xl text-xs font-black">שמור</button>
+                    <div className="flex gap-3 pt-2">
+                      <button onClick={async () => { await onEdit(focusedLeave.id, editData, focusedLeave.soldier_name); setEditMode(false); setFocusedLeave(null); }} className="flex-1 bg-amber-500 text-white py-3 rounded-2xl text-xs font-black shadow-lg shadow-amber-500/20">שמור ושלח לחייל</button>
                       <button onClick={() => setEditMode(false)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl text-xs font-black">ביטול</button>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="text-sm font-black text-[#2d3a2e]">{focusedLeave.soldier_name} <span className="text-gray-400 font-medium">· {focusedLeave.reason}</span></div>
-                    <div className="text-xs font-bold text-gray-500">
-                      {fmt(focusedLeave.start_date)}–{fmt(focusedLeave.end_date)} ({countLeaveDays(focusedLeave.start_date, focusedLeave.end_date, focusedLeave.departure_time, focusedLeave.return_time)} ימים)
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="text-base font-black text-[#2d3a2e]">{focusedLeave.soldier_name}</div>
+                        <div className="text-xs font-bold text-gray-500 mt-1">
+                          {fmt(focusedLeave.start_date)}–{fmt(focusedLeave.end_date)} ({countLeaveDays(focusedLeave.start_date, focusedLeave.end_date, focusedLeave.departure_time, focusedLeave.return_time)} ימים)
+                        </div>
+                        {(focusedLeave.departure_time || focusedLeave.return_time) && (
+                          <div className="text-[10px] font-bold text-gray-400 uppercase mt-1">
+                            {focusedLeave.departure_time ? `יציאה: ${focusedLeave.departure_time}` : ""}{focusedLeave.departure_time && focusedLeave.return_time ? " • " : ""}{focusedLeave.return_time ? `חזרה: ${focusedLeave.return_time}` : ""}
+                          </div>
+                        )}
+                      </div>
+                      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${STATUS_BG[focusedLeave.status]}`}>{STATUS_LABEL[focusedLeave.status]}</span>
                     </div>
-                    <div className="flex gap-2 mt-2">
+
+                    <div className="text-sm font-medium text-gray-700 bg-white border border-gray-100 p-3 rounded-xl italic">
+                      "{focusedLeave.reason}"
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-[#4b6043] uppercase tracking-widest mb-2">הערת מפקד (תופיע לחייל)</label>
+                      <textarea placeholder="למשל: סע לשלום, תהיה זמין טלפונית..." className={`${inputCls} h-16 resize-none`} value={noteMap[focusedLeave.id] ?? focusedLeave.commander_note ?? ""} onChange={(e) => setNoteMap((m: any) => ({ ...m, [focusedLeave.id]: e.target.value }))} />
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
                       {focusedLeave.status === "Pending" ? (
                         <>
-                          <button onClick={async () => { await onRequest(focusedLeave.id, "Approved"); setFocusedLeave(null); }} className="flex-1 bg-[#4b6043] text-white py-2.5 rounded-xl text-xs font-black">אישור</button>
-                          <button onClick={async () => { await onRequest(focusedLeave.id, "Denied"); setFocusedLeave(null); }} className="flex-1 bg-red-50 text-red-600 py-2.5 rounded-xl text-xs font-black">דחייה</button>
+                          <button onClick={async () => { await onRequest(focusedLeave.id, "Approved"); setFocusedLeave(null); }} className="flex-1 bg-[#4b6043] text-white py-3 rounded-xl text-xs font-black shadow-lg shadow-[#4b6043]/20">אישור</button>
+                          <button onClick={async () => { await onRequest(focusedLeave.id, "Denied"); setFocusedLeave(null); }} className="flex-1 bg-red-50 text-red-600 py-3 rounded-xl text-xs font-black border border-red-100">דחייה</button>
                         </>
                       ) : (
-                        <button onClick={async () => { await onRequest(focusedLeave.id, "Denied"); setFocusedLeave(null); }} className="flex-1 bg-gray-100 text-gray-600 py-2.5 rounded-xl text-xs font-black">בטל אישור</button>
+                        <button onClick={async () => { await onRequest(focusedLeave.id, "Denied"); setFocusedLeave(null); }} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl text-xs font-black">בטל אישור קודם</button>
                       )}
-                      <button onClick={() => { setEditData({ start_date: focusedLeave.start_date, end_date: focusedLeave.end_date, reason: focusedLeave.reason, departure_time: focusedLeave.departure_time ?? "", return_time: focusedLeave.return_time ?? "" }); setEditMode(true); }} className="flex-1 bg-gray-50 text-gray-600 py-2.5 rounded-xl text-xs font-black border border-gray-200">עריכה</button>
+                      <button onClick={() => { setEditData({ start_date: focusedLeave.start_date, end_date: focusedLeave.end_date, reason: focusedLeave.reason, departure_time: focusedLeave.departure_time ?? "", return_time: focusedLeave.return_time ?? "" }); setEditMode(true); }} className="flex-1 bg-amber-50 text-amber-600 py-3 rounded-xl text-xs font-black border border-amber-100">הצע פשרה ✏️</button>
                     </div>
                   </>
                 )}
@@ -439,16 +382,69 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
             )}
 
             {!isHomeDay && (
-              <div>
-                <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">בבסיס ({onBase.length})</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {onBase.map((s: any) => <span key={s.name} className="bg-gray-50 text-gray-600 font-bold text-[10px] px-3 py-1.5 rounded-full">{s.name}</span>)}
+              <div className="pt-2 border-t border-gray-50">
+                <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">נשארים בבסיס ({onBase.length})</div>
+                <div className="flex flex-wrap gap-2">
+                  {onBase.map((s: any) => <span key={s.name} className="bg-gray-50 border border-gray-100 text-gray-600 font-bold text-[10px] px-3 py-1.5 rounded-full">{s.name}</span>)}
                 </div>
               </div>
             )}
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+// ── History Tab ────────────────────────────────────────────────────────────────
+function HistoryTab({ requests, soldiers }: any) {
+  const [filterSoldier, setFilterSoldier] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+
+  const filteredHistory = [...requests]
+    .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
+    .filter((r) => filterSoldier === "all" || r.soldier_name === filterSoldier)
+    .filter((r) => filterStatus === "all" || r.status === filterStatus);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-white space-y-4">
+        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">היסטוריית בקשות כוללת</h3>
+        <div className="flex gap-3">
+          <select value={filterSoldier} onChange={(e) => setFilterSoldier(e.target.value)} className="flex-1 bg-gray-50 border-none rounded-2xl px-4 py-3 text-sm font-bold text-gray-600 outline-none">
+            <option value="all">כל החיילים</option>
+            {soldiers.map((s: any) => <option key={s.name} value={s.name}>{s.name}</option>)}
+          </select>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="flex-1 bg-gray-50 border-none rounded-2xl px-4 py-3 text-sm font-bold text-gray-600 outline-none">
+            <option value="all">כל הסטטוסים</option>
+            <option value="Approved">אושרו</option>
+            <option value="Pending">ממתינים</option>
+            <option value="Denied">נדחו</option>
+          </select>
+        </div>
+      </div>
+
+      {filteredHistory.length === 0 ? (
+        <div className="text-center text-gray-400 py-16 font-bold text-sm">אין תוצאות בהיסטוריה</div>
+      ) : (
+        <div className="space-y-3">
+          {filteredHistory.map((r: any) => (
+            <div key={r.id} className={`rounded-[2rem] p-5 shadow-sm border border-white relative overflow-hidden ${STATUS_BG[r.status]}`}>
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-black text-[#2d3a2e] text-base">{r.soldier_name}</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">{STATUS_LABEL[r.status]}</span>
+              </div>
+              <div className="text-xs font-bold text-gray-600 mb-1">
+                {fmt(r.start_date)} – {fmt(r.end_date)} ({countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time)} ימים)
+              </div>
+              <div className="text-[10px] font-bold text-gray-500 uppercase">
+                {r.departure_time ? `יציאה: ${r.departure_time} • ` : ""}{r.return_time ? `חזרה: ${r.return_time} • ` : ""}{r.reason}
+              </div>
+              {r.commander_note && <div className="text-xs font-bold text-[#4b6043] mt-3 bg-white/50 p-3 rounded-xl italic">הערתך: "{r.commander_note}"</div>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -547,13 +543,14 @@ function NotificationsTab({ notifications, soldiers, onSend }: any) {
         </select>
         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="כותרת..." className={inputCls} />
         <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="תוכן ההודעה..." rows={3} className={`${inputCls} resize-none`} />
-        <button onClick={() => void handleSend()} disabled={sending || !title.trim() || !body.trim()} className="w-full bg-[#4b6043] text-white py-4 rounded-2xl font-bold shadow-lg shadow-[#4b6043]/20 disabled:opacity-50">
-          {sending ? "שולח..." : "שלח עכשיו"}
+        <button onClick={() => void handleSend()} disabled={sending || !title.trim() || !body.trim()} className="w-full bg-[#4b6043] text-white py-4 rounded-2xl font-bold shadow-lg shadow-[#4b6043]/20 disabled:opacity-50 active:scale-95 transition-all">
+          {sending ? "שולח..." : "שלח עכשיו 🔔"}
         </button>
       </div>
 
       <div className="space-y-3">
         <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2">היסטוריית התראות</h3>
+        {notifications.length === 0 && <div className="text-center text-gray-400 py-6 text-sm font-bold">אין הודעות.</div>}
         {notifications.map((n: any) => (
           <div key={n.id} className="bg-white rounded-[2rem] p-5 shadow-sm border border-white">
             <div className="flex justify-between items-start">
@@ -562,7 +559,7 @@ function NotificationsTab({ notifications, soldiers, onSend }: any) {
             </div>
             <div className="text-xs font-medium text-gray-600 mt-1">{n.body}</div>
             <div className="text-[10px] font-bold text-[#4b6043] mt-2 uppercase tracking-widest bg-[#4b6043]/5 inline-block px-3 py-1 rounded-full">
-              נמען: {n.target === 'all' ? 'כולם' : n.target}
+              נמען: {n.target === "all" ? "כולם" : n.target}
             </div>
           </div>
         ))}
@@ -572,7 +569,6 @@ function NotificationsTab({ notifications, soldiers, onSend }: any) {
 }
 
 // ── Manage Tab ─────────────────────────────────────────────────────────────────
-
 function ManageTab({ soldiers, onDelete, onUpdate }: any) {
   const [editing, setEditing] = useState<string | null>(null);
   const [editData, setEditData] = useState({ name: "", pkal: "", password: "" });
@@ -583,7 +579,7 @@ function ManageTab({ soldiers, onDelete, onUpdate }: any) {
   const saveEdit = async (oldName: string) => {
     const data: any = {};
     if (editData.name.trim() && editData.name !== oldName) data.name = editData.name.trim();
-    if (editData.pkal.trim() && editData.pkal !== soldiers.find((s:any)=>s.name===oldName)?.pkal) data.pkal = editData.pkal.trim();
+    if (editData.pkal.trim() && editData.pkal !== soldiers.find((s: any) => s.name === oldName)?.pkal) data.pkal = editData.pkal.trim();
     if (editData.password.trim()) data.password = editData.password.trim();
     if (Object.keys(data).length === 0) { cancelEdit(); return; }
     await onUpdate(oldName, data);
@@ -598,11 +594,11 @@ function ManageTab({ soldiers, onDelete, onUpdate }: any) {
           {editing === s.name ? (
             <div className="space-y-4">
               <div className="text-xs font-black text-[#4b6043] uppercase tracking-widest">עריכת פרופיל</div>
-              <input value={editData.name} onChange={(e) => setEditData({...editData, name: e.target.value})} className={inputCls} placeholder="שם" />
-              <select value={editData.pkal} onChange={(e) => setEditData({...editData, pkal: e.target.value})} className={inputCls}>
+              <input value={editData.name} onChange={(e) => setEditData({ ...editData, name: e.target.value })} className={inputCls} placeholder="שם" />
+              <select value={editData.pkal} onChange={(e) => setEditData({ ...editData, pkal: e.target.value })} className={inputCls}>
                 {PKALS.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
-              <input type="password" value={editData.password} onChange={(e) => setEditData({...editData, password: e.target.value})} className={inputCls} placeholder="סיסמה חדשה (אופציונלי)" />
+              <input type="password" value={editData.password} onChange={(e) => setEditData({ ...editData, password: e.target.value })} className={inputCls} placeholder="סיסמה חדשה (אופציונלי)" />
               <div className="flex gap-3">
                 <button onClick={() => void saveEdit(s.name)} className="flex-1 bg-[#4b6043] text-white py-3 rounded-2xl text-xs font-black shadow-lg shadow-[#4b6043]/20">שמור שינויים</button>
                 <button onClick={cancelEdit} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl text-xs font-black">ביטול</button>
