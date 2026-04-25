@@ -70,10 +70,14 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
   };
 
   const handleEdit = async (id: number, data: any, targetSoldier: string) => {
+    const { commander_note, ...editFields } = data;
     try {
-      const updated = await api.editRequest(id, data);
+      let updated = await api.editRequest(id, editFields);
+      if (commander_note) {
+        updated = await api.updateRequest(id, { status: updated.status, commander_note });
+      }
       setRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
-      toast.success("בקשת פשרה נשמרה");
+      toast.success("הבקשה עודכנה");
       try {
         await api.sendNotification({
           target: targetSoldier,
@@ -205,7 +209,7 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [focusedLeave, setFocusedLeave] = useState<LeaveRequest | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const [editData, setEditData] = useState({ start_date: "", end_date: "", reason: "", departure_time: "", return_time: "" });
+  const [editData, setEditData] = useState({ start_date: "", end_date: "", reason: "", departure_time: "", return_time: "", commander_note: "" });
 
   const blanks = Array.from({ length: firstDay(calMonth) }, (_, i) => i);
   const dStr = (day: number) => `2026-${String(calMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -314,7 +318,7 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
               <div className="bg-[#fdfcf9] border border-gray-100 rounded-[1.5rem] p-5 space-y-4 shadow-inner">
                 {editMode ? (
                   <>
-                    <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest">{focusedLeave.soldier_name} — הצעת פשרה / שינוי</div>
+                    <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest">{focusedLeave.soldier_name} — תיקון בקשה</div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[10px] font-bold text-gray-400 mb-1">מתאריך</label>
@@ -334,6 +338,10 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
                       </div>
                     </div>
                     <input type="text" value={editData.reason} onChange={(e) => setEditData((d) => ({ ...d, reason: e.target.value }))} className={inputCls} placeholder="סיבה" />
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1">הערה לחייל (הסבר לשינוי)</label>
+                      <textarea value={editData.commander_note} onChange={(e) => setEditData((d) => ({ ...d, commander_note: e.target.value }))} className={`${inputCls} h-16 resize-none`} placeholder="למשל: שיניתי את התאריכים כי יש אימון ביום שביקשת..." />
+                    </div>
                     <div className="flex gap-3 pt-2">
                       <button onClick={async () => { await onEdit(focusedLeave.id, editData, focusedLeave.soldier_name); setEditMode(false); setFocusedLeave(null); }} className="flex-1 bg-amber-500 text-white py-3 rounded-2xl text-xs font-black shadow-lg shadow-amber-500/20">שמור ושלח לחייל</button>
                       <button onClick={() => setEditMode(false)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl text-xs font-black">ביטול</button>
@@ -374,7 +382,7 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
                       ) : (
                         <button onClick={async () => { await onRequest(focusedLeave.id, "Denied"); setFocusedLeave(null); }} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl text-xs font-black">בטל אישור קודם</button>
                       )}
-                      <button onClick={() => { setEditData({ start_date: focusedLeave.start_date, end_date: focusedLeave.end_date, reason: focusedLeave.reason, departure_time: focusedLeave.departure_time ?? "", return_time: focusedLeave.return_time ?? "" }); setEditMode(true); }} className="flex-1 bg-amber-50 text-amber-600 py-3 rounded-xl text-xs font-black border border-amber-100">הצע פשרה ✏️</button>
+                      <button onClick={() => { setEditData({ start_date: focusedLeave.start_date, end_date: focusedLeave.end_date, reason: focusedLeave.reason, departure_time: focusedLeave.departure_time ?? "", return_time: focusedLeave.return_time ?? "", commander_note: focusedLeave.commander_note ?? "" }); setEditMode(true); }} className="flex-1 bg-amber-50 text-amber-600 py-3 rounded-xl text-xs font-black border border-amber-100">תקן בקשה ✏️</button>
                     </div>
                   </>
                 )}
