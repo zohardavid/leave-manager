@@ -16,6 +16,9 @@ export interface Soldier {
   tzz_amrel?: string;
   tzz_kesher?: string;
   tzz_nosaf?: string;
+  tzz_extra1?: string;
+  tzz_extra2?: string;
+  tzz_extra3?: string;
 }
 
 export interface LeaveRequest {

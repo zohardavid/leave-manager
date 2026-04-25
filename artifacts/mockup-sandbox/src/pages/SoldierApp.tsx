@@ -61,7 +61,9 @@ function calendarWeeks(year: number, month: number) {
 
 const inputCls = "w-full border-0 bg-gray-100/50 rounded-2xl px-4 py-3.5 text-base outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-[#4b6043] focus:bg-white transition-all placeholder:text-gray-400";
 
-const EQUIP_KEYS = ["mispar_ishi", "tzz_neshek", "tzz_kavanot2", "tzz_kavanot_m5", "tzz_amrel", "tzz_kesher", "tzz_nosaf"] as const;
+const FIXED_KEYS = ["mispar_ishi", "tzz_neshek", "tzz_kavanot2", "tzz_kavanot_m5", "tzz_amrel", "tzz_kesher", "tzz_nosaf"] as const;
+const EXTRA_KEYS = ["tzz_extra1", "tzz_extra2", "tzz_extra3"] as const;
+const EQUIP_KEYS = [...FIXED_KEYS, ...EXTRA_KEYS] as const;
 const DEFAULT_FIELD_LABELS: Record<string, string> = {
   mispar_ishi: 'מ"א',
   tzz_neshek: "צ' נשק",
@@ -70,6 +72,9 @@ const DEFAULT_FIELD_LABELS: Record<string, string> = {
   tzz_amrel: "צ' אמרל",
   tzz_kesher: "צ' קשר",
   tzz_nosaf: "צ' נוסף",
+  tzz_extra1: "",
+  tzz_extra2: "",
+  tzz_extra3: "",
 };
 
 type Tab = "home" | "requests" | "calendar";
@@ -109,6 +114,14 @@ export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; on
       }
       toast.success("הציוד עודכן בהצלחה ✅");
     } catch { toast.error("שגיאה בעדכון הציוד"); }
+  };
+
+  const handleUpdateLabels = async (labels: Record<string, string>) => {
+    try {
+      await api.setConfig("field_labels", JSON.stringify(labels));
+      setFieldLabels(labels);
+      toast.success("שדות עודכנו ✅");
+    } catch { toast.error("שגיאה בעדכון השדות"); }
   };
 
   const daysApproved = requests.filter((r) => r.status === "Approved").reduce((sum, r) => sum + countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time), 0);
@@ -155,7 +168,7 @@ export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; on
 
       <main className="flex-1 overflow-y-auto px-6 pt-6 pb-32">
         {tab === "home" && (
-          <HomeTab soldier={soldierData} daysApproved={daysApproved} daysLeft={daysLeft} requestCount={requests.length} todayDisplay={todayDisplay} countdownLabel={countdownLabel} onSoldierUpdate={handleEquipmentUpdate} fieldLabels={fieldLabels} />
+          <HomeTab soldier={soldierData} daysApproved={daysApproved} daysLeft={daysLeft} requestCount={requests.length} todayDisplay={todayDisplay} countdownLabel={countdownLabel} onSoldierUpdate={handleEquipmentUpdate} onUpdateLabels={handleUpdateLabels} fieldLabels={fieldLabels} />
         )}
 
         {tab === "requests" && (
@@ -180,22 +193,36 @@ export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; on
   );
 }
 
-function HomeTab({ soldier, daysApproved, daysLeft, requestCount, todayDisplay, countdownLabel, onSoldierUpdate, fieldLabels }: any) {
-  const [editingEquip, setEditingEquip] = useState(false);
+function HomeTab({ soldier, daysApproved, daysLeft, requestCount, todayDisplay, countdownLabel, onSoldierUpdate, onUpdateLabels, fieldLabels }: any) {
+  const [mode, setMode] = useState<"view" | "editValues" | "editLabels">("view");
   const [equipData, setEquipData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [labelDraft, setLabelDraft] = useState<Record<string, string>>({});
+  const [savingLabels, setSavingLabels] = useState(false);
 
-  const openEdit = () => {
-    setEquipData(Object.fromEntries(EQUIP_KEYS.map((key) => [key, soldier[key] ?? ""])));
-    setEditingEquip(true);
+  const activeKeys = EQUIP_KEYS.filter((key) => !EXTRA_KEYS.includes(key as any) || fieldLabels[key]);
+  const hasUnusedExtra = EXTRA_KEYS.some((key) => !fieldLabels[key]);
+
+  const openEditValues = () => {
+    setEquipData(Object.fromEntries(activeKeys.map((key) => [key, soldier[key] ?? ""])));
+    setMode("editValues");
+  };
+
+  const openEditLabels = () => {
+    setLabelDraft({ ...fieldLabels });
+    setMode("editLabels");
   };
 
   const saveEquipment = async () => {
     setSaving(true);
-    try {
-      await onSoldierUpdate(equipData);
-      setEditingEquip(false);
-    } finally { setSaving(false); }
+    try { await onSoldierUpdate(equipData); setMode("view"); }
+    finally { setSaving(false); }
+  };
+
+  const saveLabels = async () => {
+    setSavingLabels(true);
+    try { await onUpdateLabels(labelDraft); setMode("view"); }
+    finally { setSavingLabels(false); }
   };
 
   return (
@@ -228,51 +255,78 @@ function HomeTab({ soldier, daysApproved, daysLeft, requestCount, todayDisplay, 
       </div>
 
       <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-white">
+        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ציוד אישי</div>
-          {!editingEquip ? (
-            <button onClick={openEdit} className="text-[10px] font-black text-[#4b6043] uppercase tracking-widest bg-[#4b6043]/5 px-3 py-1.5 rounded-xl active:scale-95 transition-all">
-              עריכה ✏️
-            </button>
+          {mode === "view" ? (
+            <div className="flex items-center gap-2">
+              <button onClick={openEditLabels} className="text-[10px] font-black text-gray-500 bg-gray-100 px-3 py-1.5 rounded-xl active:scale-95 transition-all">⚙️ שדות</button>
+              <button onClick={openEditValues} className="text-[10px] font-black text-[#4b6043] bg-[#4b6043]/5 px-3 py-1.5 rounded-xl active:scale-95 transition-all">עריכה ✏️</button>
+            </div>
           ) : (
-            <button onClick={() => setEditingEquip(false)} className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              ביטול
-            </button>
+            <button onClick={() => setMode("view")} className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ביטול</button>
           )}
         </div>
 
-        {editingEquip ? (
+        {/* Edit values mode */}
+        {mode === "editValues" && (
           <div className="space-y-3">
-            {EQUIP_KEYS.map((key) => (
+            {activeKeys.map((key) => (
               <div key={key}>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{fieldLabels[key]}</label>
-                <input
-                  value={equipData[key] ?? ""}
-                  onChange={(e) => setEquipData((d) => ({ ...d, [key]: e.target.value }))}
-                  className={inputCls}
-                  placeholder={`הזן ${fieldLabels[key]}...`}
-                />
+                <input value={equipData[key] ?? ""} onChange={(e) => setEquipData((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} placeholder={`הזן ${fieldLabels[key]}...`} />
               </div>
             ))}
-            <button
-              onClick={() => void saveEquipment()}
-              disabled={saving}
-              className="w-full bg-[#4b6043] text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-[#4b6043]/20 disabled:opacity-50 active:scale-[0.98] transition-all mt-2"
-            >
+            <button onClick={() => void saveEquipment()} disabled={saving} className="w-full bg-[#4b6043] text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-[#4b6043]/20 disabled:opacity-50 active:scale-[0.98] transition-all mt-2">
               {saving ? "שומר..." : "שמור שינויים"}
             </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-            {EQUIP_KEYS.map((key) => (
+        )}
+
+        {/* Edit labels mode */}
+        {mode === "editLabels" && (
+          <div className="space-y-3">
+            <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">שנה שמות שדות — שדה ריק לא יוצג</div>
+            {FIXED_KEYS.map((key) => (
               <div key={key}>
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">{fieldLabels[key]}</div>
-                <div className="text-sm font-black text-[#2d3a2e] truncate">
-                  {(soldier[key] as string | undefined)?.trim() || <span className="text-gray-200 font-medium">—</span>}
-                </div>
+                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">{key}</label>
+                <input value={labelDraft[key] ?? ""} onChange={(e) => setLabelDraft((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} />
               </div>
             ))}
+            <div className="border-t border-gray-100 pt-3 mt-1">
+              <div className="text-[9px] font-bold text-[#4b6043] uppercase tracking-widest mb-2">שדות נוספים — מלא שם כדי להפעיל</div>
+              {EXTRA_KEYS.map((key, i) => (
+                <div key={key} className="mb-3">
+                  <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">שדה נוסף {i + 1}</label>
+                  <input value={labelDraft[key] ?? ""} onChange={(e) => setLabelDraft((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} placeholder="לדוגמה: צ׳ מאג, מטול..." />
+                </div>
+              ))}
+            </div>
+            <button onClick={() => void saveLabels()} disabled={savingLabels} className="w-full bg-[#4b6043] text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-[#4b6043]/20 disabled:opacity-50 active:scale-[0.98] transition-all">
+              {savingLabels ? "שומר..." : "שמור שדות"}
+            </button>
           </div>
+        )}
+
+        {/* View mode */}
+        {mode === "view" && (
+          <>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              {activeKeys.map((key) => (
+                <div key={key}>
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">{fieldLabels[key]}</div>
+                  <div className="text-sm font-black text-[#2d3a2e] truncate">
+                    {(soldier[key] as string | undefined)?.trim() || <span className="text-gray-200 font-medium">—</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {hasUnusedExtra && (
+              <button onClick={openEditLabels} className="mt-4 w-full text-[10px] font-black text-[#4b6043] border border-dashed border-[#4b6043]/30 py-2.5 rounded-2xl active:scale-[0.98] transition-all">
+                + הוסף שדה
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>

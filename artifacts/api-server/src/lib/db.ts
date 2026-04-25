@@ -72,6 +72,9 @@ export async function initDb(): Promise<void> {
     ALTER TABLE soldiers ADD COLUMN IF NOT EXISTS tzz_amrel TEXT NOT NULL DEFAULT '';
     ALTER TABLE soldiers ADD COLUMN IF NOT EXISTS tzz_kesher TEXT NOT NULL DEFAULT '';
     ALTER TABLE soldiers ADD COLUMN IF NOT EXISTS tzz_nosaf TEXT NOT NULL DEFAULT '';
+    ALTER TABLE soldiers ADD COLUMN IF NOT EXISTS tzz_extra1 TEXT NOT NULL DEFAULT '';
+    ALTER TABLE soldiers ADD COLUMN IF NOT EXISTS tzz_extra2 TEXT NOT NULL DEFAULT '';
+    ALTER TABLE soldiers ADD COLUMN IF NOT EXISTS tzz_extra3 TEXT NOT NULL DEFAULT '';
   `);
   await query(`
     UPDATE soldiers SET mispar_ishi='8559767', tzz_neshek='933600', tzz_kavanot_m5='26082' WHERE name='נעם מוסקוביץ' AND mispar_ishi='';

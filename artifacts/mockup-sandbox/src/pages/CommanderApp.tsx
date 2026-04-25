@@ -33,6 +33,8 @@ function fmt(d: string) {
 
 const inputCls = "w-full border-0 bg-gray-100/50 rounded-2xl px-4 py-3.5 text-base outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-[#4b6043] focus:bg-white transition-all placeholder:text-gray-400";
 
+const FIXED_KEYS = ["mispar_ishi", "tzz_neshek", "tzz_kavanot2", "tzz_kavanot_m5", "tzz_amrel", "tzz_kesher", "tzz_nosaf"] as const;
+const EXTRA_KEYS = ["tzz_extra1", "tzz_extra2", "tzz_extra3"] as const;
 const DEFAULT_FIELD_LABELS: Record<string, string> = {
   mispar_ishi: 'מ"א',
   tzz_neshek: "צ' נשק",
@@ -41,6 +43,9 @@ const DEFAULT_FIELD_LABELS: Record<string, string> = {
   tzz_amrel: "צ' אמרל",
   tzz_kesher: "צ' קשר",
   tzz_nosaf: "צ' נוסף",
+  tzz_extra1: "",
+  tzz_extra2: "",
+  tzz_extra3: "",
 };
 
 export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; onLogout: () => void; }) {
@@ -564,8 +569,6 @@ function SoldiersTab({ stats, requests }: any) {
 }
 
 // ── Equipment Tab ──────────────────────────────────────────────────────────────
-const EQUIP_KEYS = ["mispar_ishi", "tzz_neshek", "tzz_kavanot2", "tzz_kavanot_m5", "tzz_amrel", "tzz_kesher", "tzz_nosaf"] as const;
-
 function EquipmentTab({ soldiers, fieldLabels, onUpdateSoldier, onUpdateLabels }: {
   soldiers: any[];
   fieldLabels: Record<string, string>;
@@ -580,10 +583,12 @@ function EquipmentTab({ soldiers, fieldLabels, onUpdateSoldier, onUpdateLabels }
   const [labelDraft, setLabelDraft] = useState<Record<string, string>>({});
   const [savingLabels, setSavingLabels] = useState(false);
 
+  const activeKeys = [...FIXED_KEYS, ...EXTRA_KEYS.filter((k) => fieldLabels[k])];
+  const hasUnusedExtra = EXTRA_KEYS.some((k) => !fieldLabels[k]);
   const filtered = soldiers.filter((s) => s.name.includes(search) || !search);
 
   const openEdit = (s: any) => {
-    setEditData(Object.fromEntries(EQUIP_KEYS.map((k) => [k, (s[k] as string) ?? ""])));
+    setEditData(Object.fromEntries(activeKeys.map((k) => [k, (s[k] as string) ?? ""])));
     setEditingSoldier(s.name);
   };
 
@@ -609,30 +614,33 @@ function EquipmentTab({ soldiers, fieldLabels, onUpdateSoldier, onUpdateLabels }
           placeholder="חפש חייל..."
           className="flex-1 border-0 bg-gray-100/50 rounded-2xl px-4 py-3 text-sm outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-[#4b6043] transition-all"
         />
-        <button
-          onClick={() => { setLabelDraft({ ...fieldLabels }); setEditingLabels(true); }}
-          className="shrink-0 text-[10px] font-black text-[#4b6043] bg-[#4b6043]/5 px-3 py-3 rounded-2xl uppercase tracking-widest active:scale-95 transition-all"
-        >
-          ✏️ כותרות
-        </button>
+        {hasUnusedExtra && (
+          <button onClick={() => { setLabelDraft({ ...fieldLabels }); setEditingLabels(true); }} className="shrink-0 text-[10px] font-black text-[#4b6043] bg-[#4b6043]/5 px-3 py-3 rounded-2xl active:scale-95 transition-all">+ שדה</button>
+        )}
+        <button onClick={() => { setLabelDraft({ ...fieldLabels }); setEditingLabels(true); }} className="shrink-0 text-[10px] font-black text-gray-500 bg-gray-100 px-3 py-3 rounded-2xl active:scale-95 transition-all">⚙️ שדות</button>
       </div>
 
       {editingLabels && (
         <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-white space-y-3">
-          <div className="text-[10px] font-black text-[#4b6043] uppercase tracking-widest mb-1">עריכת שמות שדות</div>
-          {EQUIP_KEYS.map((key) => (
+          <div className="text-[10px] font-black text-[#4b6043] uppercase tracking-widest mb-1">שנה שמות שדות</div>
+          {FIXED_KEYS.map((key) => (
             <div key={key}>
               <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">{key}</label>
-              <input
-                value={labelDraft[key] ?? ""}
-                onChange={(e) => setLabelDraft((d) => ({ ...d, [key]: e.target.value }))}
-                className={inputCls}
-              />
+              <input value={labelDraft[key] ?? ""} onChange={(e) => setLabelDraft((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} />
             </div>
           ))}
+          <div className="border-t border-gray-100 pt-3">
+            <div className="text-[9px] font-bold text-[#4b6043] uppercase tracking-widest mb-2">שדות נוספים — מלא שם כדי להפעיל</div>
+            {EXTRA_KEYS.map((key, i) => (
+              <div key={key} className="mb-3">
+                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">שדה נוסף {i + 1}</label>
+                <input value={labelDraft[key] ?? ""} onChange={(e) => setLabelDraft((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} placeholder="לדוגמה: צ׳ מאג, מטול..." />
+              </div>
+            ))}
+          </div>
           <div className="flex gap-3 pt-1">
             <button onClick={() => void saveLabels()} disabled={savingLabels} className="flex-1 bg-[#4b6043] text-white py-3 rounded-2xl text-xs font-black shadow-lg shadow-[#4b6043]/20 disabled:opacity-50">
-              {savingLabels ? "שומר..." : "שמור כותרות"}
+              {savingLabels ? "שומר..." : "שמור שדות"}
             </button>
             <button onClick={() => setEditingLabels(false)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl text-xs font-black">ביטול</button>
           </div>
@@ -650,22 +658,13 @@ function EquipmentTab({ soldiers, fieldLabels, onUpdateSoldier, onUpdateLabels }
                 </div>
                 <button onClick={() => setEditingSoldier(null)} className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ביטול</button>
               </div>
-              {EQUIP_KEYS.map((key) => (
+              {activeKeys.map((key) => (
                 <div key={key}>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{fieldLabels[key]}</label>
-                  <input
-                    value={editData[key] ?? ""}
-                    onChange={(e) => setEditData((d) => ({ ...d, [key]: e.target.value }))}
-                    className={inputCls}
-                    placeholder={`הזן ${fieldLabels[key]}...`}
-                  />
+                  <input value={editData[key] ?? ""} onChange={(e) => setEditData((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} placeholder={`הזן ${fieldLabels[key]}...`} />
                 </div>
               ))}
-              <button
-                onClick={() => void save()}
-                disabled={saving}
-                className="w-full bg-[#4b6043] text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-[#4b6043]/20 disabled:opacity-50 active:scale-[0.98] transition-all mt-1"
-              >
+              <button onClick={() => void save()} disabled={saving} className="w-full bg-[#4b6043] text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-[#4b6043]/20 disabled:opacity-50 active:scale-[0.98] transition-all mt-1">
                 {saving ? "שומר..." : "שמור שינויים"}
               </button>
             </div>
@@ -679,7 +678,7 @@ function EquipmentTab({ soldiers, fieldLabels, onUpdateSoldier, onUpdateLabels }
                 <button onClick={() => openEdit(s)} className="text-[10px] font-black text-[#4b6043] bg-[#4b6043]/5 px-3 py-1.5 rounded-xl active:scale-95 transition-all">עריכה ✏️</button>
               </div>
               <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
-                {EQUIP_KEYS.map((key) => (
+                {activeKeys.map((key) => (
                   <div key={key}>
                     <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{fieldLabels[key]}</div>
                     <div className="text-xs font-black text-[#2d3a2e] mt-0.5 truncate">
