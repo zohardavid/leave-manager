@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { Soldier } from "../lib/types";
+import { PKALS } from "../lib/types";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 
@@ -8,9 +9,6 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-const PKALS = [
-  "לוחם","חובש","קשר","מטול","קלע","איבו","אבטה","נגב","מאג","מפקד מחלקה",
-];
 
 // עיצוב משופר לשדות הקלט
 const inputCls =

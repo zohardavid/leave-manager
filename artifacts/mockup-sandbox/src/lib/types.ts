@@ -1,4 +1,9 @@
 export type RequestStatus = "Pending" | "Approved" | "Denied";
+
+export const PKALS = [
+  "לוחם", "חובש", "קשר", "מטול", "קלע", "איבו", "אבטה", "נגב", "מאג", "מפקד מחלקה",
+] as const;
+export type Pkal = (typeof PKALS)[number];
 export type RoundStatus = "Pending" | "Approved" | "Denied" | "Replaced";
 
 export interface Soldier {

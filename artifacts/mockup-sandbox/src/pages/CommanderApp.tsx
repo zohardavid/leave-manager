@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Soldier, LeaveRequest, Swap, AppNotification } from "../lib/types";
+import { PKALS } from "../lib/types";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 import { countLeaveDays } from "./SoldierApp";
@@ -111,11 +112,6 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
   const firstDay = (m: number) => new Date(2026, m - 1, 1).getDay();
   const calDays = Array.from({ length: daysInMonth(calMonth) }, (_, i) => i + 1);
 
-  const onLeaveOnDay = (day: number): string[] => {
-    const dStr = new Date(2026, calMonth - 1, day).toISOString().slice(0, 10);
-    return requests.filter((r) => r.status === "Approved" && r.start_date <= dStr && r.end_date >= dStr).map((r) => r.soldier_name);
-  };
-
   const soldierStats = soldiers.map((s) => {
     const days = requests.filter((r) => r.soldier_name === s.name && r.status === "Approved")
       .reduce((acc, r) => acc + countLeaveDays(r.start_date, r.end_date, r.departure_time, r.return_time), 0);
@@ -155,7 +151,7 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
         ) : (
           <>
             {tab === "requests" && <RequestsTab requests={requests} pendingRequests={pendingRequests} pendingSwaps={pendingSwaps} soldiers={soldiers} noteMap={noteMap} setNoteMap={setNoteMap} onRequest={handleRequest} onSwap={handleSwap} />}
-            {tab === "calendar" && <CalendarTab calMonth={calMonth} setCalMonth={setCalMonth} calDays={calDays} firstDay={firstDay} onLeaveOnDay={onLeaveOnDay} soldiers={soldiers} requests={requests} onRequest={handleRequest} onEdit={handleEdit} />}
+            {tab === "calendar" && <CalendarTab calMonth={calMonth} setCalMonth={setCalMonth} calDays={calDays} firstDay={firstDay} soldiers={soldiers} requests={requests} onRequest={handleRequest} onEdit={handleEdit} />}
             {tab === "soldiers" && <SoldiersTab stats={soldierStats} requests={requests} />}
             {tab === "notifications" && <NotificationsTab notifications={notifications} soldiers={soldiers} onSend={handleSendNotification} />}
             {tab === "manage" && <ManageTab soldiers={soldiers} onDelete={handleDelete} onUpdate={handleUpdateSoldier} />}
@@ -576,7 +572,6 @@ function NotificationsTab({ notifications, soldiers, onSend }: any) {
 }
 
 // ── Manage Tab ─────────────────────────────────────────────────────────────────
-const PKAL_OPTIONS = ["לוחם", "מ\"כ", "סמל", "רס\"ל", "מפקד מחלקה"];
 
 function ManageTab({ soldiers, onDelete, onUpdate }: any) {
   const [editing, setEditing] = useState<string | null>(null);
@@ -605,7 +600,7 @@ function ManageTab({ soldiers, onDelete, onUpdate }: any) {
               <div className="text-xs font-black text-[#4b6043] uppercase tracking-widest">עריכת פרופיל</div>
               <input value={editData.name} onChange={(e) => setEditData({...editData, name: e.target.value})} className={inputCls} placeholder="שם" />
               <select value={editData.pkal} onChange={(e) => setEditData({...editData, pkal: e.target.value})} className={inputCls}>
-                {PKAL_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+                {PKALS.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
               <input type="password" value={editData.password} onChange={(e) => setEditData({...editData, password: e.target.value})} className={inputCls} placeholder="סיסמה חדשה (אופציונלי)" />
               <div className="flex gap-3">
