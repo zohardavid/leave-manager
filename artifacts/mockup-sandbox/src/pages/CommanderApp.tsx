@@ -7,12 +7,13 @@ import { countLeaveDays } from "./SoldierApp";
 import { subscribeToPush, unsubscribeFromPush } from "../lib/pushUtils";
 import { IconClipboard, IconCalendar, IconUsers, IconBell, IconBellSlash, IconCog } from "../lib/icons";
 
-const STATUS_LABEL: Record<string, string> = { Pending: "ממתין", Approved: "אושר", Denied: "נדחה", Replaced: "הוחלף" };
+const STATUS_LABEL: Record<string, string> = { Pending: "ממתין", Approved: "אושר", Denied: "נדחה", Replaced: "הוחלף", Modified: "בתהליך תיקון" };
 const STATUS_BG: Record<string, string> = {
   Pending: "bg-amber-50/50 border-amber-100 text-amber-800",
   Approved: "bg-green-50/50 border-green-100 text-green-800",
   Denied: "bg-red-50/50 border-red-100 text-red-800",
   Replaced: "bg-gray-50 border-gray-200 text-gray-500",
+  Modified: "bg-blue-50 border-blue-100 text-blue-700",
 };
 
 const DEPLOYMENT_START = new Date(2026, 3, 26);
@@ -206,6 +207,7 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
   const dStr = (day: number) => `2026-${String(calMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   const approvedOnDay = (day: number) => requests.filter((r: any) => r.status === "Approved" && r.start_date <= dStr(day) && r.end_date >= dStr(day));
   const pendingOnDay = (day: number) => requests.filter((r: any) => r.status === "Pending" && r.start_date <= dStr(day) && r.end_date >= dStr(day));
+  const modifiedOnDay = (day: number) => requests.filter((r: any) => r.status === "Modified" && r.start_date <= dStr(day) && r.end_date >= dStr(day));
   const inDeployment = (day: number) => { const d = new Date(2026, calMonth - 1, day); return d >= DEPLOYMENT_START && d <= DEPLOYMENT_END; };
 
   const pendingSwaps = swaps.filter((s: any) => s.status === "Pending");
@@ -214,6 +216,7 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
     if (isSelected) return "bg-[#4b6043] text-white shadow-lg shadow-[#4b6043]/30";
     if (approvedOnDay(day).length > 0) return "bg-green-50 text-green-700";
     if (pendingOnDay(day).length > 0) return "bg-amber-50 text-amber-600";
+    if (modifiedOnDay(day).length > 0) return "bg-blue-50 text-blue-600";
     if (!inDeployment(day)) return "bg-gray-50 text-gray-300";
     return dayType(new Date(2026, calMonth - 1, day)) === "home" ? "bg-[#fdfcf9] text-[#4b6043] border border-[#4b6043]/20" : "bg-white text-gray-700";
   };
@@ -260,6 +263,7 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
                 <div className="flex gap-0.5 mt-1">
                   {approvedOnDay(day).length > 0 && <span className={`w-1 h-1 rounded-full ${isSelected ? "bg-white" : "bg-green-500"}`} />}
                   {pendingOnDay(day).length > 0 && <span className={`w-1 h-1 rounded-full ${isSelected ? "bg-white" : "bg-amber-500"}`} />}
+                  {modifiedOnDay(day).length > 0 && <span className={`w-1 h-1 rounded-full ${isSelected ? "bg-white" : "bg-blue-500"}`} />}
                 </div>
               </button>
             );
@@ -270,8 +274,9 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
       {selectedDay !== null && (() => {
         const approved = approvedOnDay(selectedDay);
         const pending = pendingOnDay(selectedDay);
+        const modified = modifiedOnDay(selectedDay);
         const isHomeDay = inDeployment(selectedDay) && dayType(new Date(2026, calMonth - 1, selectedDay)) === "home";
-        const absent = [...approved, ...pending].map((r: any) => r.soldier_name);
+        const absent = [...approved, ...pending, ...modified].map((r: any) => r.soldier_name);
         const onBase = soldiers.filter((s: any) => !absent.includes(s.name));
 
         return (
@@ -289,6 +294,17 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
                 <div className="flex flex-wrap gap-2">
                   {pending.map((r: any) => (
                     <button key={r.id} onClick={() => setFocusedLeave(focusedLeave?.id === r.id ? null : r)} className={`text-xs px-4 py-2 rounded-2xl font-bold transition-all ${focusedLeave?.id === r.id ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>{r.soldier_name}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {modified.length > 0 && (
+              <div>
+                <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">✏️ בתהליך תיקון — דורשים אישור סופי ({modified.length})</div>
+                <div className="flex flex-wrap gap-2">
+                  {modified.map((r: any) => (
+                    <button key={r.id} onClick={() => setFocusedLeave(focusedLeave?.id === r.id ? null : r)} className={`text-xs px-4 py-2 rounded-2xl font-bold transition-all ${focusedLeave?.id === r.id ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 border border-blue-200"}`}>{r.soldier_name}</button>
                   ))}
                 </div>
               </div>
@@ -370,9 +386,14 @@ function CalendarTab({ calMonth, setCalMonth, calDays, firstDay, soldiers, reque
                           <button onClick={async () => { await onRequest(focusedLeave.id, "Approved"); setFocusedLeave(null); }} className="flex-1 bg-[#4b6043] text-white py-3 rounded-xl text-xs font-black shadow-lg shadow-[#4b6043]/20">אישור</button>
                           <button onClick={async () => { await onRequest(focusedLeave.id, "Denied"); setFocusedLeave(null); }} className="flex-1 bg-red-50 text-red-600 py-3 rounded-xl text-xs font-black border border-red-100">דחייה</button>
                         </>
-                      ) : (
-                        <button onClick={async () => { await onRequest(focusedLeave.id, "Denied"); setFocusedLeave(null); }} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl text-xs font-black">בטל אישור קודם</button>
-                      )}
+                      ) : focusedLeave.status === "Modified" ? (
+                        <>
+                          <button onClick={async () => { await onRequest(focusedLeave.id, "Approved"); setFocusedLeave(null); }} className="flex-1 bg-[#4b6043] text-white py-3 rounded-xl text-xs font-black shadow-lg shadow-[#4b6043]/20">אשר סופי ✅</button>
+                          <button onClick={async () => { await onRequest(focusedLeave.id, "Denied"); setFocusedLeave(null); }} className="flex-1 bg-red-50 text-red-600 py-3 rounded-xl text-xs font-black border border-red-100">דחה</button>
+                        </>
+                      ) : focusedLeave.status === "Approved" ? (
+                        <button onClick={async () => { await onRequest(focusedLeave.id, "Denied"); setFocusedLeave(null); }} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl text-xs font-black">בטל אישור</button>
+                      ) : null}
                       <button onClick={() => { setEditData({ start_date: focusedLeave.start_date, end_date: focusedLeave.end_date, reason: focusedLeave.reason, departure_time: focusedLeave.departure_time ?? "", return_time: focusedLeave.return_time ?? "", commander_note: focusedLeave.commander_note ?? "" }); setEditMode(true); }} className="flex-1 bg-amber-50 text-amber-600 py-3 rounded-xl text-xs font-black border border-amber-100">תקן בקשה ✏️</button>
                     </div>
                   </>
