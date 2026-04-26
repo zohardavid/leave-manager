@@ -19,6 +19,7 @@ export interface Soldier {
   tzz_extra1?: string;
   tzz_extra2?: string;
   tzz_extra3?: string;
+  field_labels?: string;
 }
 
 export interface LeaveRequest {

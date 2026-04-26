@@ -5,14 +5,14 @@ const router = Router();
 
 router.get("/", async (_req, res) => {
   const result = await query(
-    "SELECT name, pkal, mispar_ishi, tzz_neshek, tzz_kavanot2, tzz_kavanot_m5, tzz_amrel, tzz_kesher, tzz_nosaf, tzz_extra1, tzz_extra2, tzz_extra3 FROM soldiers ORDER BY name",
+    "SELECT name, pkal, mispar_ishi, tzz_neshek, tzz_kavanot2, tzz_kavanot_m5, tzz_amrel, tzz_kesher, tzz_nosaf, tzz_extra1, tzz_extra2, tzz_extra3, field_labels FROM soldiers ORDER BY name",
   );
   res.json(result.rows);
 });
 
 router.put("/:name", async (req, res) => {
   const oldName = decodeURIComponent(req.params["name"] ?? "");
-  const { name, pkal, password, mispar_ishi, tzz_neshek, tzz_kavanot2, tzz_kavanot_m5, tzz_amrel, tzz_kesher, tzz_nosaf, tzz_extra1, tzz_extra2, tzz_extra3 } = req.body as {
+  const { name, pkal, password, mispar_ishi, tzz_neshek, tzz_kavanot2, tzz_kavanot_m5, tzz_amrel, tzz_kesher, tzz_nosaf, tzz_extra1, tzz_extra2, tzz_extra3, field_labels } = req.body as {
     name?: string;
     pkal?: string;
     password?: string;
@@ -26,6 +26,7 @@ router.put("/:name", async (req, res) => {
     tzz_extra1?: string;
     tzz_extra2?: string;
     tzz_extra3?: string;
+    field_labels?: string;
   };
   const newName = name?.trim() || oldName;
   const setClauses: string[] = [];
@@ -44,6 +45,7 @@ router.put("/:name", async (req, res) => {
   if (tzz_extra1 !== undefined) { setClauses.push(`tzz_extra1 = $${i++}`); params.push(tzz_extra1); }
   if (tzz_extra2 !== undefined) { setClauses.push(`tzz_extra2 = $${i++}`); params.push(tzz_extra2); }
   if (tzz_extra3 !== undefined) { setClauses.push(`tzz_extra3 = $${i++}`); params.push(tzz_extra3); }
+  if (field_labels !== undefined) { setClauses.push(`field_labels = $${i++}`); params.push(field_labels); }
   if (setClauses.length === 0) {
     res.status(400).json({ error: "אין שינויים" });
     return;
@@ -53,7 +55,7 @@ router.put("/:name", async (req, res) => {
   try {
     await client.query("BEGIN");
     const result = await client.query(
-      `UPDATE soldiers SET ${setClauses.join(", ")} WHERE name = $${i} RETURNING name, pkal, mispar_ishi, tzz_neshek, tzz_kavanot2, tzz_kavanot_m5, tzz_amrel, tzz_kesher, tzz_nosaf, tzz_extra1, tzz_extra2, tzz_extra3`,
+      `UPDATE soldiers SET ${setClauses.join(", ")} WHERE name = $${i} RETURNING name, pkal, mispar_ishi, tzz_neshek, tzz_kavanot2, tzz_kavanot_m5, tzz_amrel, tzz_kesher, tzz_nosaf, tzz_extra1, tzz_extra2, tzz_extra3, field_labels`,
       params,
     );
     if (result.rows.length === 0) {

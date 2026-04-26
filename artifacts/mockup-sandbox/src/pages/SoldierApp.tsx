@@ -79,47 +79,52 @@ const DEFAULT_FIELD_LABELS: Record<string, string> = {
 
 type Tab = "home" | "requests" | "calendar";
 
+function parseSoldierLabels(s: Soldier): Record<string, string> {
+  try { return { ...DEFAULT_FIELD_LABELS, ...(JSON.parse(s.field_labels ?? "{}") as Record<string, string>) }; }
+  catch { return { ...DEFAULT_FIELD_LABELS }; }
+}
+
 export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; onLogout: () => void; }) {
   const [tab, setTab] = useState<Tab>("home");
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [swaps, setSwaps] = useState<Swap[]>([]);
   const [pushEnabled, setPushEnabled] = useState(() => localStorage.getItem("lm_push_enabled") !== "false");
+  const [soldierData, setSoldierData] = useState<Soldier>(soldier);
 
-  const [fieldLabels, setFieldLabels] = useState<Record<string, string>>(DEFAULT_FIELD_LABELS);
+  const fieldLabels = parseSoldierLabels(soldierData);
 
   const load = useCallback(async () => {
     try {
-      const [myReqs, swps, cfg] = await Promise.all([api.getRequests(soldier.name), api.getSwaps(), api.getConfig().catch(() => ({}) as Record<string, string>)]);
+      const [myReqs, swps] = await Promise.all([api.getRequests(soldier.name), api.getSwaps()]);
       setRequests(myReqs);
       setSwaps(swps);
-      if (cfg["field_labels"]) {
-        try { setFieldLabels({ ...DEFAULT_FIELD_LABELS, ...(JSON.parse(cfg["field_labels"]) as Record<string, string>) }); } catch { /* use defaults */ }
-      }
     } catch { /* silent */ }
   }, [soldier.name]);
 
   useEffect(() => { void load(); }, [load]);
 
-  const [soldierData, setSoldierData] = useState<Soldier>(soldier);
+  const saveAndSync = async (updated: Soldier) => {
+    setSoldierData(updated);
+    const raw = localStorage.getItem("lm_session");
+    if (raw) {
+      const s = JSON.parse(raw) as { soldier: Soldier; role: string };
+      s.soldier = updated;
+      localStorage.setItem("lm_session", JSON.stringify(s));
+    }
+  };
 
   const handleEquipmentUpdate = async (data: Record<string, string>) => {
     try {
       const updated = await api.updateSoldier(soldierData.name, data);
-      setSoldierData(updated);
-      const raw = localStorage.getItem("lm_session");
-      if (raw) {
-        const s = JSON.parse(raw) as { soldier: Soldier; role: string };
-        s.soldier = updated;
-        localStorage.setItem("lm_session", JSON.stringify(s));
-      }
+      await saveAndSync(updated);
       toast.success("הציוד עודכן בהצלחה ✅");
     } catch { toast.error("שגיאה בעדכון הציוד"); }
   };
 
   const handleUpdateLabels = async (labels: Record<string, string>) => {
     try {
-      await api.setConfig("field_labels", JSON.stringify(labels));
-      setFieldLabels(labels);
+      const updated = await api.updateSoldier(soldierData.name, { field_labels: JSON.stringify(labels) });
+      await saveAndSync(updated);
       toast.success("שדות עודכנו ✅");
     } catch { toast.error("שגיאה בעדכון השדות"); }
   };

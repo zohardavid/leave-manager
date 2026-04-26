@@ -48,6 +48,11 @@ const DEFAULT_FIELD_LABELS: Record<string, string> = {
   tzz_extra3: "",
 };
 
+function parseSoldierLabels(s: any): Record<string, string> {
+  try { return { ...DEFAULT_FIELD_LABELS, ...(JSON.parse(s.field_labels ?? "{}") as Record<string, string>) }; }
+  catch { return { ...DEFAULT_FIELD_LABELS }; }
+}
+
 export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; onLogout: () => void; }) {
   const [tab, setTab] = useState<"calendar" | "history" | "soldiers" | "manage" | "notifications" | "equipment">("calendar");
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
@@ -58,16 +63,12 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
   const [pushEnabled, setPushEnabled] = useState(() => localStorage.getItem("lm_push_enabled") !== "false");
   const [noteMap, setNoteMap] = useState<Record<number, string>>({});
   const [calMonth, setCalMonth] = useState(4);
-  const [fieldLabels, setFieldLabels] = useState<Record<string, string>>(DEFAULT_FIELD_LABELS);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [r, sw, s, n, cfg] = await Promise.all([api.getRequests(), api.getSwaps(), api.getSoldiers(), api.getNotifications(), api.getConfig().catch(() => ({}) as Record<string, string>)]);
+      const [r, sw, s, n] = await Promise.all([api.getRequests(), api.getSwaps(), api.getSoldiers(), api.getNotifications()]);
       setRequests(r); setSwaps(sw); setSoldiers(s); setNotifications(n);
-      if (cfg["field_labels"]) {
-        try { setFieldLabels({ ...DEFAULT_FIELD_LABELS, ...(JSON.parse(cfg["field_labels"]) as Record<string, string>) }); } catch { /* use defaults */ }
-      }
     } catch { toast.error("שגיאה בטעינת נתונים"); } finally { setLoading(false); }
   }, []);
 
@@ -114,14 +115,6 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
       setSoldiers((prev) => prev.map((s) => (s.name === oldName ? updated : s)));
       toast.success("פרופיל החייל עודכן");
     } catch { toast.error("שגיאה בעדכון פרופיל"); }
-  };
-
-  const handleUpdateLabels = async (labels: Record<string, string>) => {
-    try {
-      await api.setConfig("field_labels", JSON.stringify(labels));
-      setFieldLabels(labels);
-      toast.success("כותרות עודכנו");
-    } catch { toast.error("שגיאה בעדכון כותרות"); }
   };
 
   const handleSendNotification = async (data: any) => {
@@ -199,7 +192,7 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
             {tab === "calendar" && <CalendarTab calMonth={calMonth} setCalMonth={setCalMonth} calDays={calDays} firstDay={firstDay} soldiers={soldiers} requests={requests} swaps={swaps} noteMap={noteMap} setNoteMap={setNoteMap} onRequest={handleRequest} onSwap={handleSwap} onEdit={handleEdit} />}
             {tab === "history" && <HistoryTab requests={requests} soldiers={soldiers} />}
             {tab === "soldiers" && <SoldiersTab stats={soldierStats} requests={requests} />}
-            {tab === "equipment" && <EquipmentTab soldiers={soldiers} fieldLabels={fieldLabels} onUpdateSoldier={handleUpdateSoldier} onUpdateLabels={handleUpdateLabels} />}
+            {tab === "equipment" && <EquipmentTab soldiers={soldiers} onUpdateSoldier={handleUpdateSoldier} />}
             {tab === "notifications" && <NotificationsTab notifications={notifications} soldiers={soldiers} onSend={handleSendNotification} />}
             {tab === "manage" && <ManageTab soldiers={soldiers} onDelete={handleDelete} onUpdate={handleUpdateSoldier} />}
           </>
@@ -569,60 +562,63 @@ function SoldiersTab({ stats, requests }: any) {
 }
 
 // ── Equipment Tab ──────────────────────────────────────────────────────────────
-function EquipmentTab({ soldiers, fieldLabels, onUpdateSoldier, onUpdateLabels }: {
-  soldiers: any[];
-  fieldLabels: Record<string, string>;
-  onUpdateSoldier: (name: string, data: Record<string, string>) => Promise<void>;
-  onUpdateLabels: (labels: Record<string, string>) => Promise<void>;
-}) {
-  const [search, setSearch] = useState("");
-  const [editingSoldier, setEditingSoldier] = useState<string | null>(null);
+function SoldierEquipCard({ s, onUpdateSoldier }: { s: any; onUpdateSoldier: (name: string, data: Record<string, string>) => Promise<void> }) {
+  const [mode, setMode] = useState<"view" | "editValues" | "editLabels">("view");
   const [editData, setEditData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [editingLabels, setEditingLabels] = useState(false);
   const [labelDraft, setLabelDraft] = useState<Record<string, string>>({});
   const [savingLabels, setSavingLabels] = useState(false);
 
-  const activeKeys = [...FIXED_KEYS, ...EXTRA_KEYS.filter((k) => fieldLabels[k])];
-  const hasUnusedExtra = EXTRA_KEYS.some((k) => !fieldLabels[k]);
-  const filtered = soldiers.filter((s) => s.name.includes(search) || !search);
-
-  const openEdit = (s: any) => {
-    setEditData(Object.fromEntries(activeKeys.map((k) => [k, (s[k] as string) ?? ""])));
-    setEditingSoldier(s.name);
-  };
+  const labels = parseSoldierLabels(s);
+  const activeKeys = [...FIXED_KEYS, ...EXTRA_KEYS.filter((k) => labels[k])];
+  const hasUnusedExtra = EXTRA_KEYS.some((k) => !labels[k]);
 
   const save = async () => {
-    if (!editingSoldier) return;
     setSaving(true);
-    try { await onUpdateSoldier(editingSoldier, editData); setEditingSoldier(null); }
+    try { await onUpdateSoldier(s.name, editData); setMode("view"); }
     finally { setSaving(false); }
   };
 
   const saveLabels = async () => {
     setSavingLabels(true);
-    try { await onUpdateLabels(labelDraft); setEditingLabels(false); }
+    try { await onUpdateSoldier(s.name, { field_labels: JSON.stringify(labelDraft) }); setMode("view"); }
     finally { setSavingLabels(false); }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-[2rem] p-4 shadow-sm border border-white flex gap-3 items-center">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="חפש חייל..."
-          className="flex-1 border-0 bg-gray-100/50 rounded-2xl px-4 py-3 text-sm outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-[#4b6043] transition-all"
-        />
-        {hasUnusedExtra && (
-          <button onClick={() => { setLabelDraft({ ...fieldLabels }); setEditingLabels(true); }} className="shrink-0 text-[10px] font-black text-[#4b6043] bg-[#4b6043]/5 px-3 py-3 rounded-2xl active:scale-95 transition-all">+ שדה</button>
+    <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-white">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="font-black text-[#2d3a2e] text-base">{s.name}</div>
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{s.pkal}</div>
+        </div>
+        {mode === "view" ? (
+          <div className="flex gap-2">
+            <button onClick={() => { setLabelDraft({ ...labels }); setMode("editLabels"); }} className="text-[10px] font-black text-gray-500 bg-gray-100 px-3 py-1.5 rounded-xl active:scale-95 transition-all">⚙️</button>
+            <button onClick={() => { setEditData(Object.fromEntries(activeKeys.map((k) => [k, (s[k] as string) ?? ""]))); setMode("editValues"); }} className="text-[10px] font-black text-[#4b6043] bg-[#4b6043]/5 px-3 py-1.5 rounded-xl active:scale-95 transition-all">עריכה ✏️</button>
+          </div>
+        ) : (
+          <button onClick={() => setMode("view")} className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ביטול</button>
         )}
-        <button onClick={() => { setLabelDraft({ ...fieldLabels }); setEditingLabels(true); }} className="shrink-0 text-[10px] font-black text-gray-500 bg-gray-100 px-3 py-3 rounded-2xl active:scale-95 transition-all">⚙️ שדות</button>
       </div>
 
-      {editingLabels && (
-        <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-white space-y-3">
-          <div className="text-[10px] font-black text-[#4b6043] uppercase tracking-widest mb-1">שנה שמות שדות</div>
+      {mode === "editValues" && (
+        <div className="space-y-3">
+          {activeKeys.map((key) => (
+            <div key={key}>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{labels[key]}</label>
+              <input value={editData[key] ?? ""} onChange={(e) => setEditData((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} placeholder={`הזן ${labels[key]}...`} />
+            </div>
+          ))}
+          <button onClick={() => void save()} disabled={saving} className="w-full bg-[#4b6043] text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-[#4b6043]/20 disabled:opacity-50 active:scale-[0.98] transition-all mt-1">
+            {saving ? "שומר..." : "שמור שינויים"}
+          </button>
+        </div>
+      )}
+
+      {mode === "editLabels" && (
+        <div className="space-y-3">
+          <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">שנה שמות שדות — שדה ריק לא יוצג</div>
           {FIXED_KEYS.map((key) => (
             <div key={key}>
               <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">{key}</label>
@@ -642,59 +638,48 @@ function EquipmentTab({ soldiers, fieldLabels, onUpdateSoldier, onUpdateLabels }
             <button onClick={() => void saveLabels()} disabled={savingLabels} className="flex-1 bg-[#4b6043] text-white py-3 rounded-2xl text-xs font-black shadow-lg shadow-[#4b6043]/20 disabled:opacity-50">
               {savingLabels ? "שומר..." : "שמור שדות"}
             </button>
-            <button onClick={() => setEditingLabels(false)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl text-xs font-black">ביטול</button>
+            <button onClick={() => setMode("view")} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl text-xs font-black">ביטול</button>
           </div>
         </div>
       )}
 
-      {filtered.map((s) => (
-        <div key={s.name} className="bg-white rounded-[2rem] p-5 shadow-sm border border-white">
-          {editingSoldier === s.name ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between mb-1">
-                <div>
-                  <div className="font-black text-[#2d3a2e] text-base">{s.name}</div>
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{s.pkal}</div>
+      {mode === "view" && (
+        <>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+            {activeKeys.map((key) => (
+              <div key={key}>
+                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{labels[key]}</div>
+                <div className="text-xs font-black text-[#2d3a2e] mt-0.5 truncate">
+                  {(s[key] as string | undefined)?.trim() || <span className="text-gray-200 font-medium">—</span>}
                 </div>
-                <button onClick={() => setEditingSoldier(null)} className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ביטול</button>
               </div>
-              {activeKeys.map((key) => (
-                <div key={key}>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{fieldLabels[key]}</label>
-                  <input value={editData[key] ?? ""} onChange={(e) => setEditData((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} placeholder={`הזן ${fieldLabels[key]}...`} />
-                </div>
-              ))}
-              <button onClick={() => void save()} disabled={saving} className="w-full bg-[#4b6043] text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-[#4b6043]/20 disabled:opacity-50 active:scale-[0.98] transition-all mt-1">
-                {saving ? "שומר..." : "שמור שינויים"}
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <div className="font-black text-[#2d3a2e] text-base">{s.name}</div>
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{s.pkal}</div>
-                </div>
-                <button onClick={() => openEdit(s)} className="text-[10px] font-black text-[#4b6043] bg-[#4b6043]/5 px-3 py-1.5 rounded-xl active:scale-95 transition-all">עריכה ✏️</button>
-              </div>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
-                {activeKeys.map((key) => (
-                  <div key={key}>
-                    <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{fieldLabels[key]}</div>
-                    <div className="text-xs font-black text-[#2d3a2e] mt-0.5 truncate">
-                      {(s[key] as string | undefined)?.trim() || <span className="text-gray-200 font-medium">—</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
+            ))}
+          </div>
+          {hasUnusedExtra && (
+            <button onClick={() => { setLabelDraft({ ...labels }); setMode("editLabels"); }} className="mt-3 w-full text-[10px] font-black text-[#4b6043] border border-dashed border-[#4b6043]/30 py-2 rounded-2xl active:scale-[0.98] transition-all">
+              + הוסף שדה
+            </button>
           )}
-        </div>
-      ))}
-
-      {filtered.length === 0 && (
-        <div className="text-center text-gray-400 py-16 font-bold text-sm">לא נמצאו חיילים</div>
+        </>
       )}
+    </div>
+  );
+}
+
+function EquipmentTab({ soldiers, onUpdateSoldier }: {
+  soldiers: any[];
+  onUpdateSoldier: (name: string, data: Record<string, string>) => Promise<void>;
+}) {
+  const [search, setSearch] = useState("");
+  const filtered = soldiers.filter((s) => s.name.includes(search) || !search);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-[2rem] p-4 shadow-sm border border-white">
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="חפש חייל..." className="w-full border-0 bg-gray-100/50 rounded-2xl px-4 py-3 text-sm outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-[#4b6043] transition-all" />
+      </div>
+      {filtered.map((s) => <SoldierEquipCard key={s.name} s={s} onUpdateSoldier={onUpdateSoldier} />)}
+      {filtered.length === 0 && <div className="text-center text-gray-400 py-16 font-bold text-sm">לא נמצאו חיילים</div>}
     </div>
   );
 }
