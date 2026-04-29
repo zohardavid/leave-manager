@@ -54,8 +54,7 @@ function parseSoldierLabels(s: any): Record<string, string> {
 }
 
 export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; onLogout: () => void; }) {
-  const isSergeant = soldier.pkal === "סמל";
-  const [tab, setTab] = useState<"calendar" | "history" | "soldiers" | "manage" | "notifications" | "equipment">(isSergeant ? "equipment" : "calendar");
+  const [tab, setTab] = useState<"calendar" | "history" | "soldiers" | "manage" | "notifications" | "equipment">("calendar");
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [swaps, setSwaps] = useState<Swap[]>([]);
   const [soldiers, setSoldiers] = useState<Soldier[]>([]);
@@ -150,7 +149,7 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
     { id: "notifications", label: "התראות", Icon: IconBell },
     { id: "manage", label: "ניהול", Icon: IconCog },
   ] as const;
-  const TABS = isSergeant ? ALL_TABS.filter((t) => t.id === "equipment") : ALL_TABS;
+  const TABS = ALL_TABS;
 
   return (
     <div className="flex flex-col h-full bg-[#fdfcf9] overflow-hidden">

@@ -8,7 +8,7 @@ import { subscribeToPush } from "./lib/pushUtils";
 
 interface Session {
   soldier: Soldier;
-  role: "soldier" | "commander";
+  role: "soldier" | "commander" | "sergeant";
 }
 
 function loadSession(): Session | null {
@@ -24,8 +24,9 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(loadSession);
 
   const handleLogin = (soldier: Soldier, token: string) => {
-    const role: "soldier" | "commander" =
-      soldier.pkal === "מפקד מחלקה" || soldier.pkal === "סמל" ? "commander" : "soldier";
+    const role: "soldier" | "commander" | "sergeant" =
+      soldier.pkal === "מפקד מחלקה" ? "commander" :
+      soldier.pkal === "סמל" ? "sergeant" : "soldier";
     const s: Session = { soldier, role };
     setSession(s);
     localStorage.setItem("lm_session", JSON.stringify(s));
@@ -46,6 +47,9 @@ export default function App() {
       {!session && <LoginPage onLogin={(s, t) => handleLogin(s, t)} />}
       {session?.role === "soldier" && (
         <SoldierApp soldier={session.soldier} onLogout={handleLogout} />
+      )}
+      {session?.role === "sergeant" && (
+        <SoldierApp soldier={session.soldier} onLogout={handleLogout} isSergeant />
       )}
       {session?.role === "commander" && (
         <CommanderApp soldier={session.soldier} onLogout={handleLogout} />

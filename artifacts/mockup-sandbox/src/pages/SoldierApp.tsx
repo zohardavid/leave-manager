@@ -3,7 +3,7 @@ import type { Soldier, LeaveRequest, Swap } from "../lib/types";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 import { subscribeToPush, unsubscribeFromPush } from "../lib/pushUtils";
-import { IconHome, IconClipboard, IconCalendar, IconBell, IconBellSlash } from "../lib/icons";
+import { IconHome, IconClipboard, IconCalendar, IconBell, IconBellSlash, IconBarChart } from "../lib/icons";
 
 // --- לוגיקה וקבועים ---
 const DEPLOYMENT_START = new Date(2026, 3, 26);
@@ -77,29 +77,33 @@ const DEFAULT_FIELD_LABELS: Record<string, string> = {
   tzz_extra3: "",
 };
 
-type Tab = "home" | "requests" | "calendar";
+type Tab = "home" | "requests" | "calendar" | "equipment";
 
 function parseSoldierLabels(s: Soldier): Record<string, string> {
   try { return { ...DEFAULT_FIELD_LABELS, ...(JSON.parse(s.field_labels ?? "{}") as Record<string, string>) }; }
   catch { return { ...DEFAULT_FIELD_LABELS }; }
 }
 
-export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; onLogout: () => void; }) {
+export default function SoldierApp({ soldier, onLogout, isSergeant }: { soldier: Soldier; onLogout: () => void; isSergeant?: boolean }) {
   const [tab, setTab] = useState<Tab>("home");
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [swaps, setSwaps] = useState<Swap[]>([]);
   const [pushEnabled, setPushEnabled] = useState(() => localStorage.getItem("lm_push_enabled") !== "false");
   const [soldierData, setSoldierData] = useState<Soldier>(soldier);
+  const [allSoldiers, setAllSoldiers] = useState<Soldier[]>([]);
 
   const fieldLabels = parseSoldierLabels(soldierData);
 
   const load = useCallback(async () => {
     try {
-      const [myReqs, swps] = await Promise.all([api.getRequests(soldier.name), api.getSwaps()]);
+      const promises: Promise<any>[] = [api.getRequests(soldier.name), api.getSwaps()];
+      if (isSergeant) promises.push(api.getSoldiers());
+      const [myReqs, swps, sols] = await Promise.all(promises);
       setRequests(myReqs);
       setSwaps(swps);
+      if (isSergeant && sols) setAllSoldiers(sols as Soldier[]);
     } catch { /* silent */ }
-  }, [soldier.name]);
+  }, [soldier.name, isSergeant]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -150,10 +154,19 @@ export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; on
 
   const todayDisplay = new Date().toLocaleDateString("he-IL", { day: "numeric", month: "long" });
 
+  const handleUpdateAnother = async (name: string, data: Record<string, string>) => {
+    try {
+      const updated = await api.updateSoldier(name, data);
+      setAllSoldiers((prev) => prev.map((s) => (s.name === name ? updated : s)));
+      toast.success("עודכן בהצלחה ✅");
+    } catch { toast.error("שגיאה בעדכון"); }
+  };
+
   const navItems: { key: Tab; label: string; Icon: React.FC<{ className?: string }> }[] = [
     { key: "home", label: "בית", Icon: IconHome },
     { key: "requests", label: "בקשות יציאה", Icon: IconClipboard },
     { key: "calendar", label: "לוח שנה", Icon: IconCalendar },
+    ...(isSergeant ? [{ key: "equipment" as Tab, label: "ציוד", Icon: IconBarChart }] : []),
   ];
 
   return (
@@ -182,6 +195,10 @@ export default function SoldierApp({ soldier, onLogout }: { soldier: Soldier; on
 
         {tab === "calendar" && (
           <CalendarTab soldier={soldier} requests={requests} swaps={swaps} />
+        )}
+
+        {tab === "equipment" && isSergeant && (
+          <SergeantEquipTab soldiers={allSoldiers} onUpdate={handleUpdateAnother} />
         )}
       </main>
 
@@ -334,6 +351,122 @@ function HomeTab({ soldier, daysApproved, daysLeft, requestCount, todayDisplay, 
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Sergeant Equipment Tab ─────────────────────────────────────────────────────
+function EquipCard({ s, onUpdate }: { s: Soldier; onUpdate: (name: string, data: Record<string, string>) => Promise<void> }) {
+  const [mode, setMode] = useState<"view" | "editValues" | "editLabels">("view");
+  const [editData, setEditData] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [labelDraft, setLabelDraft] = useState<Record<string, string>>({});
+  const [savingLabels, setSavingLabels] = useState(false);
+
+  const labels = parseSoldierLabels(s);
+  const activeKeys = [...FIXED_KEYS, ...EXTRA_KEYS.filter((k) => labels[k])];
+  const hasUnusedExtra = EXTRA_KEYS.some((k) => !labels[k]);
+
+  const save = async () => {
+    setSaving(true);
+    try { await onUpdate(s.name, editData); setMode("view"); }
+    finally { setSaving(false); }
+  };
+
+  const saveLabels = async () => {
+    setSavingLabels(true);
+    try { await onUpdate(s.name, { field_labels: JSON.stringify(labelDraft) }); setMode("view"); }
+    finally { setSavingLabels(false); }
+  };
+
+  return (
+    <div className="bg-white rounded-[2rem] p-5 shadow-sm border border-white">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="font-black text-[#2d3a2e] text-base">{s.name}</div>
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{s.pkal}</div>
+        </div>
+        {mode === "view" ? (
+          <div className="flex gap-2">
+            <button onClick={() => { setLabelDraft({ ...labels }); setMode("editLabels"); }} className="text-[10px] font-black text-gray-500 bg-gray-100 px-3 py-1.5 rounded-xl active:scale-95 transition-all">⚙️</button>
+            <button onClick={() => { setEditData(Object.fromEntries(activeKeys.map((k) => [k, (s[k] as string) ?? ""]))); setMode("editValues"); }} className="text-[10px] font-black text-[#4b6043] bg-[#4b6043]/5 px-3 py-1.5 rounded-xl active:scale-95 transition-all">עריכה ✏️</button>
+          </div>
+        ) : (
+          <button onClick={() => setMode("view")} className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ביטול</button>
+        )}
+      </div>
+      {mode === "editValues" && (
+        <div className="space-y-3">
+          {activeKeys.map((key) => (
+            <div key={key}>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{labels[key]}</label>
+              <input value={editData[key] ?? ""} onChange={(e) => setEditData((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} placeholder={`הזן ${labels[key]}...`} />
+            </div>
+          ))}
+          <button onClick={() => void save()} disabled={saving} className="w-full bg-[#4b6043] text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-[#4b6043]/20 disabled:opacity-50 active:scale-[0.98] transition-all mt-1">
+            {saving ? "שומר..." : "שמור שינויים"}
+          </button>
+        </div>
+      )}
+      {mode === "editLabels" && (
+        <div className="space-y-3">
+          <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">שנה שמות שדות — שדה ריק לא יוצג</div>
+          {FIXED_KEYS.map((key) => (
+            <div key={key}>
+              <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">{key}</label>
+              <input value={labelDraft[key] ?? ""} onChange={(e) => setLabelDraft((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} />
+            </div>
+          ))}
+          <div className="border-t border-gray-100 pt-3">
+            <div className="text-[9px] font-bold text-[#4b6043] uppercase tracking-widest mb-2">שדות נוספים — מלא שם כדי להפעיל</div>
+            {EXTRA_KEYS.map((key, i) => (
+              <div key={key} className="mb-3">
+                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">שדה נוסף {i + 1}</label>
+                <input value={labelDraft[key] ?? ""} onChange={(e) => setLabelDraft((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} placeholder="לדוגמה: צ׳ מאג, מטול..." />
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button onClick={() => void saveLabels()} disabled={savingLabels} className="flex-1 bg-[#4b6043] text-white py-3 rounded-2xl text-xs font-black shadow-lg shadow-[#4b6043]/20 disabled:opacity-50">
+              {savingLabels ? "שומר..." : "שמור שדות"}
+            </button>
+            <button onClick={() => setMode("view")} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl text-xs font-black">ביטול</button>
+          </div>
+        </div>
+      )}
+      {mode === "view" && (
+        <>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+            {activeKeys.map((key) => (
+              <div key={key}>
+                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{labels[key]}</div>
+                <div className="text-xs font-black text-[#2d3a2e] mt-0.5 truncate">
+                  {(s[key] as string | undefined)?.trim() || <span className="text-gray-200 font-medium">—</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+          {hasUnusedExtra && (
+            <button onClick={() => { setLabelDraft({ ...labels }); setMode("editLabels"); }} className="mt-3 w-full text-[10px] font-black text-[#4b6043] border border-dashed border-[#4b6043]/30 py-2 rounded-2xl active:scale-[0.98] transition-all">
+              + הוסף שדה
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function SergeantEquipTab({ soldiers, onUpdate }: { soldiers: Soldier[]; onUpdate: (name: string, data: Record<string, string>) => Promise<void> }) {
+  const [search, setSearch] = useState("");
+  const filtered = soldiers.filter((s) => s.name.includes(search) || !search);
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-[2rem] p-4 shadow-sm border border-white">
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="חפש חייל..." className="w-full border-0 bg-gray-100/50 rounded-2xl px-4 py-3 text-sm outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-[#4b6043] transition-all" />
+      </div>
+      {filtered.map((s) => <EquipCard key={s.name} s={s} onUpdate={onUpdate} />)}
+      {filtered.length === 0 && <div className="text-center text-gray-400 py-16 font-bold text-sm">לא נמצאו חיילים</div>}
     </div>
   );
 }
