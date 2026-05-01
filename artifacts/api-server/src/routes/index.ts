@@ -9,6 +9,7 @@ import swapsRouter from "./swaps.js";
 import pushRouter from "./push.js";
 import notificationsRouter from "./notifications.js";
 import configRouter from "./config.js";
+import sheetsRouter from "./sheets.js";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use("/swaps", swapsRouter);
 router.use("/push", pushRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/config", configRouter);
+router.use("/sheets", sheetsRouter);
 
 export default router;

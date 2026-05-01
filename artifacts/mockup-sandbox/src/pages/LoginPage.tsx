@@ -49,7 +49,7 @@ export default function LoginPage({
   const [loginPw, setLoginPw] = useState("");
 
   const [regName, setRegName] = useState("");
-  const [regPkal, setRegPkal] = useState(PKALS[0]!);
+  const [regPkal, setRegPkal] = useState<string>(PKALS[0]!);
   const [regPw, setRegPw] = useState("");
   const [masterKey, setMasterKey] = useState("");
 

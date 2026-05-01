@@ -11,15 +11,8 @@ export interface Soldier {
   pkal: string;
   mispar_ishi?: string;
   tzz_neshek?: string;
-  tzz_kavanot2?: string;
   tzz_kavanot_m5?: string;
-  tzz_amrel?: string;
-  tzz_kesher?: string;
-  tzz_nosaf?: string;
-  tzz_extra1?: string;
-  tzz_extra2?: string;
-  tzz_extra3?: string;
-  field_labels?: string;
+  custom_fields?: string;
 }
 
 export interface LeaveRequest {

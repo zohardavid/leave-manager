@@ -98,11 +98,13 @@ export const api = {
   sendNotification: (data: { target: string; title: string; body: string }) =>
     request<{ ok: boolean }>("/notifications", { method: "POST", body: JSON.stringify(data) }),
 
-  updateSoldier: (oldName: string, data: { name?: string; pkal?: string; password?: string; mispar_ishi?: string; tzz_neshek?: string; tzz_kavanot2?: string; tzz_kavanot_m5?: string; tzz_amrel?: string; tzz_kesher?: string; tzz_nosaf?: string; tzz_extra1?: string; tzz_extra2?: string; tzz_extra3?: string; field_labels?: string }) =>
+  updateSoldier: (oldName: string, data: { name?: string; pkal?: string; password?: string; mispar_ishi?: string; tzz_neshek?: string; tzz_kavanot_m5?: string; custom_fields?: string }) =>
     request<Soldier>(`/soldiers/${encodeURIComponent(oldName)}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
+  syncFromSheet: () => request<{ ok: boolean; updated: number }>("/sheets/sync", { method: "POST" }),
 
   getConfig: () => request<Record<string, string>>("/config"),
 
@@ -111,4 +113,5 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ value }),
     }),
+
 };

@@ -19,14 +19,14 @@ router.post("/login", async (req, res) => {
     return;
   }
   const result = await query(
-    "SELECT name, pkal, password, pwd_hashed FROM soldiers WHERE name = $1",
+    "SELECT name, pkal, password, pwd_hashed, mispar_ishi, tzz_neshek, tzz_kavanot_m5, custom_fields FROM soldiers WHERE name = $1",
     [name.trim()],
   );
   if (result.rows.length === 0) {
     res.status(401).json({ error: "שם משתמש או סיסמה לא נכונים" });
     return;
   }
-  const row = result.rows[0] as { name: string; pkal: string; password: string; pwd_hashed: boolean };
+  const row = result.rows[0] as { name: string; pkal: string; password: string; pwd_hashed: boolean; mispar_ishi: string; tzz_neshek: string; tzz_kavanot_m5: string; custom_fields: string };
 
   let valid = false;
   if (row.pwd_hashed) {
@@ -46,7 +46,17 @@ router.post("/login", async (req, res) => {
   }
 
   const token = signToken(row.name, row.pkal);
-  res.json({ soldier: { name: row.name, pkal: row.pkal }, token });
+  res.json({
+    soldier: {
+      name: row.name,
+      pkal: row.pkal,
+      mispar_ishi: row.mispar_ishi ?? "",
+      tzz_neshek: row.tzz_neshek ?? "",
+      tzz_kavanot_m5: row.tzz_kavanot_m5 ?? "",
+      custom_fields: row.custom_fields ?? "[]",
+    },
+    token,
+  });
 });
 
 router.post("/register", async (req, res) => {

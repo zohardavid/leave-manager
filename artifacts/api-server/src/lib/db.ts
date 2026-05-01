@@ -76,6 +76,17 @@ export async function initDb(): Promise<void> {
     ALTER TABLE soldiers ADD COLUMN IF NOT EXISTS tzz_extra2 TEXT NOT NULL DEFAULT '';
     ALTER TABLE soldiers ADD COLUMN IF NOT EXISTS tzz_extra3 TEXT NOT NULL DEFAULT '';
     ALTER TABLE soldiers ADD COLUMN IF NOT EXISTS field_labels TEXT NOT NULL DEFAULT '{}';
+    ALTER TABLE soldiers ADD COLUMN IF NOT EXISTS custom_fields TEXT NOT NULL DEFAULT '[]';
+  `);
+  await query(`
+    UPDATE soldiers SET custom_fields = (
+      '[]'::jsonb
+      || CASE WHEN tzz_kavanot2 != '' THEN jsonb_build_array(jsonb_build_object('label', E'\\u05DB\\u05D5\\u05D5\\u05E0\\u05EA 2', 'value', tzz_kavanot2)) ELSE '[]'::jsonb END
+      || CASE WHEN tzz_amrel  != '' THEN jsonb_build_array(jsonb_build_object('label', E'\\u05D0\\u05DE\\u05E8\\u05DC',         'value', tzz_amrel))  ELSE '[]'::jsonb END
+      || CASE WHEN tzz_kesher != '' THEN jsonb_build_array(jsonb_build_object('label', E'\\u05E7\\u05E9\\u05E8',               'value', tzz_kesher)) ELSE '[]'::jsonb END
+      || CASE WHEN tzz_nosaf  != '' THEN jsonb_build_array(jsonb_build_object('label', E'\\u05E0\\u05D5\\u05E1\\u05E3',        'value', tzz_nosaf))  ELSE '[]'::jsonb END
+    )::text
+    WHERE custom_fields = '[]' AND (tzz_kavanot2 != '' OR tzz_amrel != '' OR tzz_kesher != '' OR tzz_nosaf != '');
   `);
   await query(`
     UPDATE soldiers SET mispar_ishi='8559767', tzz_neshek='933600', tzz_kavanot_m5='26082' WHERE name='נעם מוסקוביץ' AND mispar_ishi='';

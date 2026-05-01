@@ -33,24 +33,17 @@ function fmt(d: string) {
 
 const inputCls = "w-full border-0 bg-gray-100/50 rounded-2xl px-4 py-3.5 text-base outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-[#4b6043] focus:bg-white transition-all placeholder:text-gray-400";
 
-const FIXED_KEYS = ["mispar_ishi", "tzz_neshek", "tzz_kavanot2", "tzz_kavanot_m5", "tzz_amrel", "tzz_kesher", "tzz_nosaf"] as const;
-const EXTRA_KEYS = ["tzz_extra1", "tzz_extra2", "tzz_extra3"] as const;
-const DEFAULT_FIELD_LABELS: Record<string, string> = {
-  mispar_ishi: 'מ"א',
-  tzz_neshek: "צ' נשק",
-  tzz_kavanot2: "צ' כוונת 2",
-  tzz_kavanot_m5: "צ' כוונת M5",
-  tzz_amrel: "צ' אמרל",
-  tzz_kesher: "צ' קשר",
-  tzz_nosaf: "צ' נוסף",
-  tzz_extra1: "",
-  tzz_extra2: "",
-  tzz_extra3: "",
-};
+const FIXED_EQUIP = [
+  { key: "mispar_ishi" as const, label: 'מ"א' },
+  { key: "tzz_neshek" as const, label: "צ' נשק" },
+  { key: "tzz_kavanot_m5" as const, label: "כוונת" },
+] as const;
 
-function parseSoldierLabels(s: any): Record<string, string> {
-  try { return { ...DEFAULT_FIELD_LABELS, ...(JSON.parse(s.field_labels ?? "{}") as Record<string, string>) }; }
-  catch { return { ...DEFAULT_FIELD_LABELS }; }
+type CustomField = { label: string; value: string };
+
+function parseCustomFields(s: Soldier): CustomField[] {
+  try { return JSON.parse(s.custom_fields ?? "[]") as CustomField[]; }
+  catch { return []; }
 }
 
 export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; onLogout: () => void; }) {
@@ -193,7 +186,7 @@ export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; 
             {tab === "calendar" && <CalendarTab calMonth={calMonth} setCalMonth={setCalMonth} calDays={calDays} firstDay={firstDay} soldiers={soldiers} requests={requests} swaps={swaps} noteMap={noteMap} setNoteMap={setNoteMap} onRequest={handleRequest} onSwap={handleSwap} onEdit={handleEdit} />}
             {tab === "history" && <HistoryTab requests={requests} soldiers={soldiers} />}
             {tab === "soldiers" && <SoldiersTab stats={soldierStats} requests={requests} />}
-            {tab === "equipment" && <EquipmentTab soldiers={soldiers} onUpdateSoldier={handleUpdateSoldier} />}
+            {tab === "equipment" && <EquipmentTab soldiers={soldiers} onUpdateSoldier={handleUpdateSoldier} onRefresh={refresh} />}
             {tab === "notifications" && <NotificationsTab notifications={notifications} soldiers={soldiers} onSend={handleSendNotification} />}
             {tab === "manage" && <ManageTab soldiers={soldiers} onDelete={handleDelete} onUpdate={handleUpdateSoldier} />}
           </>
@@ -563,27 +556,36 @@ function SoldiersTab({ stats, requests }: any) {
 }
 
 // ── Equipment Tab ──────────────────────────────────────────────────────────────
-function SoldierEquipCard({ s, onUpdateSoldier }: { s: any; onUpdateSoldier: (name: string, data: Record<string, string>) => Promise<void> }) {
-  const [mode, setMode] = useState<"view" | "editValues" | "editLabels">("view");
-  const [editData, setEditData] = useState<Record<string, string>>({});
+function SoldierEquipCard({ s, onUpdateSoldier }: { s: Soldier; onUpdateSoldier: (name: string, data: Record<string, string>) => Promise<void> }) {
+  const [mode, setMode] = useState<"view" | "edit">("view");
+  const [fixedDraft, setFixedDraft] = useState({ mispar_ishi: "", tzz_neshek: "", tzz_kavanot_m5: "" });
+  const [customDraft, setCustomDraft] = useState<CustomField[]>([]);
   const [saving, setSaving] = useState(false);
-  const [labelDraft, setLabelDraft] = useState<Record<string, string>>({});
-  const [savingLabels, setSavingLabels] = useState(false);
 
-  const labels = parseSoldierLabels(s);
-  const activeKeys = [...FIXED_KEYS, ...EXTRA_KEYS.filter((k) => labels[k])];
-  const hasUnusedExtra = EXTRA_KEYS.some((k) => !labels[k]);
+  const customFields = parseCustomFields(s);
+
+  const openEdit = () => {
+    setFixedDraft({ mispar_ishi: s.mispar_ishi ?? "", tzz_neshek: s.tzz_neshek ?? "", tzz_kavanot_m5: s.tzz_kavanot_m5 ?? "" });
+    setCustomDraft(customFields.map((f) => ({ ...f })));
+    setMode("edit");
+  };
+
+  const addField = () => setCustomDraft((d) => [...d, { label: "", value: "" }]);
+  const removeField = (i: number) => setCustomDraft((d) => d.filter((_, j) => j !== i));
+  const updateField = (i: number, key: "label" | "value", val: string) =>
+    setCustomDraft((d) => d.map((f, j) => (j === i ? { ...f, [key]: val } : f)));
 
   const save = async () => {
     setSaving(true);
-    try { await onUpdateSoldier(s.name, editData); setMode("view"); }
-    finally { setSaving(false); }
-  };
-
-  const saveLabels = async () => {
-    setSavingLabels(true);
-    try { await onUpdateSoldier(s.name, { field_labels: JSON.stringify(labelDraft) }); setMode("view"); }
-    finally { setSavingLabels(false); }
+    try {
+      await onUpdateSoldier(s.name, {
+        mispar_ishi: fixedDraft.mispar_ishi,
+        tzz_neshek: fixedDraft.tzz_neshek,
+        tzz_kavanot_m5: fixedDraft.tzz_kavanot_m5,
+        custom_fields: JSON.stringify(customDraft.filter((f) => f.label.trim())),
+      });
+      setMode("view");
+    } finally { setSaving(false); }
   };
 
   return (
@@ -594,72 +596,66 @@ function SoldierEquipCard({ s, onUpdateSoldier }: { s: any; onUpdateSoldier: (na
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{s.pkal}</div>
         </div>
         {mode === "view" ? (
-          <div className="flex gap-2">
-            <button onClick={() => { setLabelDraft({ ...labels }); setMode("editLabels"); }} className="text-[10px] font-black text-gray-500 bg-gray-100 px-3 py-1.5 rounded-xl active:scale-95 transition-all">⚙️</button>
-            <button onClick={() => { setEditData(Object.fromEntries(activeKeys.map((k) => [k, (s[k] as string) ?? ""]))); setMode("editValues"); }} className="text-[10px] font-black text-[#4b6043] bg-[#4b6043]/5 px-3 py-1.5 rounded-xl active:scale-95 transition-all">עריכה ✏️</button>
-          </div>
+          <button onClick={openEdit} className="text-[10px] font-black text-[#4b6043] bg-[#4b6043]/5 px-3 py-1.5 rounded-xl active:scale-95 transition-all">עריכה ✏️</button>
         ) : (
           <button onClick={() => setMode("view")} className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ביטול</button>
         )}
       </div>
 
-      {mode === "editValues" && (
+      {mode === "edit" && (
         <div className="space-y-3">
-          {activeKeys.map((key) => (
+          {FIXED_EQUIP.map(({ key, label }) => (
             <div key={key}>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{labels[key]}</label>
-              <input value={editData[key] ?? ""} onChange={(e) => setEditData((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} placeholder={`הזן ${labels[key]}...`} />
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{label}</label>
+              <input value={fixedDraft[key]} onChange={(e) => setFixedDraft((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} placeholder={`הזן ${label}...`} />
             </div>
           ))}
-          <button onClick={() => void save()} disabled={saving} className="w-full bg-[#4b6043] text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-[#4b6043]/20 disabled:opacity-50 active:scale-[0.98] transition-all mt-1">
+          {customDraft.length > 0 && (
+            <div className="border-t border-gray-100 pt-3 space-y-3">
+              {customDraft.map((cf, i) => (
+                <div key={i} className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">כותרת</label>
+                    <input value={cf.label} onChange={(e) => updateField(i, "label", e.target.value)} className={inputCls} placeholder="לדוגמה: אמרל..." />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">ערך</label>
+                    <input value={cf.value} onChange={(e) => updateField(i, "value", e.target.value)} className={inputCls} placeholder="מספר..." />
+                  </div>
+                  <button onClick={() => removeField(i)} className="text-gray-300 hover:text-red-400 font-black text-2xl leading-none pb-3 transition-colors">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <button onClick={addField} className="w-full text-[10px] font-black text-[#4b6043] border border-dashed border-[#4b6043]/30 py-2 rounded-2xl active:scale-[0.98] transition-all">+ הוסף שדה</button>
+          <button onClick={() => void save()} disabled={saving} className="w-full bg-[#4b6043] text-white py-3 rounded-2xl text-xs font-black shadow-lg shadow-[#4b6043]/20 disabled:opacity-50 active:scale-[0.98] transition-all">
             {saving ? "שומר..." : "שמור שינויים"}
           </button>
-        </div>
-      )}
-
-      {mode === "editLabels" && (
-        <div className="space-y-3">
-          <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">שנה שמות שדות — שדה ריק לא יוצג</div>
-          {FIXED_KEYS.map((key) => (
-            <div key={key}>
-              <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">{key}</label>
-              <input value={labelDraft[key] ?? ""} onChange={(e) => setLabelDraft((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} />
-            </div>
-          ))}
-          <div className="border-t border-gray-100 pt-3">
-            <div className="text-[9px] font-bold text-[#4b6043] uppercase tracking-widest mb-2">שדות נוספים — מלא שם כדי להפעיל</div>
-            {EXTRA_KEYS.map((key, i) => (
-              <div key={key} className="mb-3">
-                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">שדה נוסף {i + 1}</label>
-                <input value={labelDraft[key] ?? ""} onChange={(e) => setLabelDraft((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} placeholder="לדוגמה: צ׳ מאג, מטול..." />
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-3 pt-1">
-            <button onClick={() => void saveLabels()} disabled={savingLabels} className="flex-1 bg-[#4b6043] text-white py-3 rounded-2xl text-xs font-black shadow-lg shadow-[#4b6043]/20 disabled:opacity-50">
-              {savingLabels ? "שומר..." : "שמור שדות"}
-            </button>
-            <button onClick={() => setMode("view")} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl text-xs font-black">ביטול</button>
-          </div>
         </div>
       )}
 
       {mode === "view" && (
         <>
           <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
-            {activeKeys.map((key) => (
+            {FIXED_EQUIP.map(({ key, label }) => (
               <div key={key}>
-                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{labels[key]}</div>
+                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{label}</div>
                 <div className="text-xs font-black text-[#2d3a2e] mt-0.5 truncate">
-                  {(s[key] as string | undefined)?.trim() || <span className="text-gray-200 font-medium">—</span>}
+                  {s[key]?.trim() || <span className="text-gray-200 font-medium">—</span>}
+                </div>
+              </div>
+            ))}
+            {customFields.map((cf, i) => (
+              <div key={i}>
+                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{cf.label}</div>
+                <div className="text-xs font-black text-[#2d3a2e] mt-0.5 truncate">
+                  {cf.value?.trim() || <span className="text-gray-200 font-medium">—</span>}
                 </div>
               </div>
             ))}
           </div>
-          {hasUnusedExtra && (
-            <button onClick={() => { setLabelDraft({ ...labels }); setMode("editLabels"); }} className="mt-3 w-full text-[10px] font-black text-[#4b6043] border border-dashed border-[#4b6043]/30 py-2 rounded-2xl active:scale-[0.98] transition-all">
-              + הוסף שדה
-            </button>
+          {customFields.length === 0 && (
+            <button onClick={openEdit} className="mt-3 w-full text-[10px] font-black text-[#4b6043] border border-dashed border-[#4b6043]/30 py-2 rounded-2xl active:scale-[0.98] transition-all">+ הוסף שדה</button>
           )}
         </>
       )}
@@ -667,15 +663,30 @@ function SoldierEquipCard({ s, onUpdateSoldier }: { s: any; onUpdateSoldier: (na
   );
 }
 
-function EquipmentTab({ soldiers, onUpdateSoldier }: {
+function EquipmentTab({ soldiers, onUpdateSoldier, onRefresh }: {
   soldiers: any[];
   onUpdateSoldier: (name: string, data: Record<string, string>) => Promise<void>;
+  onRefresh: () => Promise<void>;
 }) {
   const [search, setSearch] = useState("");
+  const [syncing, setSyncing] = useState(false);
   const filtered = soldiers.filter((s) => s.name.includes(search) || !search);
+
+  const syncFromSheet = async () => {
+    setSyncing(true);
+    try {
+      const res = await api.syncFromSheet();
+      await onRefresh();
+      toast.success(`סונכרן מהגיליון — ${res.updated} חיילים עודכנו`);
+    } catch { toast.error("שגיאה בסינכרון מהגיליון"); }
+    finally { setSyncing(false); }
+  };
 
   return (
     <div className="space-y-4">
+      <button onClick={() => void syncFromSheet()} disabled={syncing} className="w-full flex items-center justify-center gap-2 bg-[#4b6043]/8 border border-[#4b6043]/20 text-[#4b6043] py-3 rounded-[2rem] text-sm font-black active:scale-[0.98] transition-all disabled:opacity-50">
+        {syncing ? "מסנכרן..." : "↻ סנכרן מגיליון Google Sheets"}
+      </button>
       <div className="bg-white rounded-[2rem] p-4 shadow-sm border border-white">
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="חפש חייל..." className="w-full border-0 bg-gray-100/50 rounded-2xl px-4 py-3 text-sm outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-[#4b6043] transition-all" />
       </div>
