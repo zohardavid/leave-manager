@@ -46,6 +46,47 @@ function parseCustomFields(s: Soldier): CustomField[] {
   catch { return []; }
 }
 
+const CF_PAIRS: [string, string][] = [
+  ["סוג נשק נוסף", "צ נשק נוסף"],
+  ["סוג כוונת נוספת", "צ כוונת נוספת"],
+  ["סוג ציין", "צ ציין"],
+  ["סוג אמרל", "צ אמרל"],
+  ["סוג רחפן", "צ רחפן"],
+  ["סוג אמלח מחלקתי", "צ אמלח מחלקתי"],
+];
+
+function buildDisplayItems(s: Soldier): { label: string; value: string }[] {
+  const cfs = parseCustomFields(s);
+  const cfMap: Record<string, string> = {};
+  cfs.forEach((f) => { cfMap[f.label] = f.value; });
+  const consumed = new Set<string>();
+  const items: { label: string; value: string }[] = [];
+
+  if (s.mispar_ishi?.trim()) items.push({ label: 'מ"א', value: s.mispar_ishi });
+  if (s.tzz_neshek?.trim()) items.push({ label: "צ' נשק", value: s.tzz_neshek });
+  if (s.tzz_kavanot_m5?.trim()) {
+    const sog = cfMap["סוג כוונת"]?.trim();
+    items.push({ label: sog || "כוונת", value: s.tzz_kavanot_m5 });
+    if (sog) consumed.add("סוג כוונת");
+  }
+  for (const [typeLabel, serialLabel] of CF_PAIRS) {
+    const typeVal = cfMap[typeLabel]?.trim();
+    const serialVal = cfMap[serialLabel]?.trim();
+    if (serialVal) {
+      items.push({ label: typeVal || serialLabel, value: serialVal });
+      consumed.add(serialLabel);
+      if (typeVal) consumed.add(typeLabel);
+    } else if (typeVal) {
+      consumed.add(typeLabel);
+    }
+  }
+  cfs.forEach((cf) => {
+    if (!consumed.has(cf.label) && cf.value?.trim())
+      items.push({ label: cf.label, value: cf.value });
+  });
+  return items;
+}
+
 export default function CommanderApp({ soldier, onLogout }: { soldier: Soldier; onLogout: () => void; }) {
   const [tab, setTab] = useState<"calendar" | "history" | "soldiers" | "manage" | "notifications" | "equipment">("calendar");
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
@@ -651,13 +692,12 @@ function SoldierEquipCard({ s, onUpdateSoldier }: { s: Soldier; onUpdateSoldier:
       {mode === "view" && (
         <>
           {(() => {
-            const visibleFixed = FIXED_EQUIP.filter(({ key }) => s[key]?.trim());
-            const allFields = [...visibleFixed.map(({ key, label }) => ({ label, value: s[key] as string })), ...customFields];
-            return allFields.length === 0 ? (
+            const items = buildDisplayItems(s);
+            return items.length === 0 ? (
               <div className="text-center text-gray-300 py-3 text-xs font-medium">אין ציוד רשום</div>
             ) : (
               <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
-                {allFields.map(({ label, value }, i) => (
+                {items.map(({ label, value }, i) => (
                   <div key={i}>
                     <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{label}</div>
                     <div className="text-xs font-black text-[#2d3a2e] mt-0.5 truncate">{value}</div>
