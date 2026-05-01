@@ -18,10 +18,12 @@ const FIXED_HEADERS: Record<string, string> = {
 };
 
 async function getSheets() {
-  const auth = new google.auth.GoogleAuth({
-    keyFile: CREDS_PATH,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
+  const envCreds = process.env["GOOGLE_CREDENTIALS"];
+  const auth = new google.auth.GoogleAuth(
+    envCreds
+      ? { credentials: JSON.parse(envCreds) as object, scopes: ["https://www.googleapis.com/auth/spreadsheets"] }
+      : { keyFile: CREDS_PATH, scopes: ["https://www.googleapis.com/auth/spreadsheets"] },
+  );
   return google.sheets({ version: "v4", auth });
 }
 

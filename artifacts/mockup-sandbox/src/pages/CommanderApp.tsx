@@ -555,34 +555,53 @@ function SoldiersTab({ stats, requests }: any) {
   );
 }
 
+const SHEET_FIELDS: { label: string; placeholder: string }[] = [
+  { label: "סוג כוונת", placeholder: 'לדוגמה: M5, זאבון, טריג...' },
+  { label: "צ נשק נוסף", placeholder: "מספר סידורי" },
+  { label: "סוג נשק נוסף", placeholder: "לדוגמה: מטול, נגב, מאג..." },
+  { label: "צ כוונת נוספת", placeholder: "מספר סידורי" },
+  { label: "סוג כוונת נוספת", placeholder: "לדוגמה: זאבון..." },
+  { label: "צ ציין", placeholder: "מספר סידורי" },
+  { label: "סוג ציין", placeholder: "לדוגמה: סמן לייזר OGL..." },
+  { label: "צ אמרל", placeholder: "מספר סידורי" },
+  { label: "סוג אמרל", placeholder: "" },
+  { label: "אולר", placeholder: "מספר סידורי" },
+  { label: "צ קשר", placeholder: "מספר סידורי" },
+  { label: "צ רחפן", placeholder: "מספר סידורי" },
+  { label: "סוג רחפן", placeholder: "" },
+  { label: "משקפת", placeholder: "" },
+  { label: "צ אמלח מחלקתי", placeholder: "מספר סידורי" },
+  { label: "סוג אמלח מחלקתי", placeholder: "" },
+];
+
 // ── Equipment Tab ──────────────────────────────────────────────────────────────
 function SoldierEquipCard({ s, onUpdateSoldier }: { s: Soldier; onUpdateSoldier: (name: string, data: Record<string, string>) => Promise<void> }) {
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [fixedDraft, setFixedDraft] = useState({ mispar_ishi: "", tzz_neshek: "", tzz_kavanot_m5: "" });
-  const [customDraft, setCustomDraft] = useState<CustomField[]>([]);
+  const [sheetDraft, setSheetDraft] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
   const customFields = parseCustomFields(s);
 
   const openEdit = () => {
     setFixedDraft({ mispar_ishi: s.mispar_ishi ?? "", tzz_neshek: s.tzz_neshek ?? "", tzz_kavanot_m5: s.tzz_kavanot_m5 ?? "" });
-    setCustomDraft(customFields.map((f) => ({ ...f })));
+    const byLabel: Record<string, string> = {};
+    customFields.forEach((f) => { byLabel[f.label] = f.value; });
+    setSheetDraft(byLabel);
     setMode("edit");
   };
-
-  const addField = () => setCustomDraft((d) => [...d, { label: "", value: "" }]);
-  const removeField = (i: number) => setCustomDraft((d) => d.filter((_, j) => j !== i));
-  const updateField = (i: number, key: "label" | "value", val: string) =>
-    setCustomDraft((d) => d.map((f, j) => (j === i ? { ...f, [key]: val } : f)));
 
   const save = async () => {
     setSaving(true);
     try {
+      const custom_fields = SHEET_FIELDS
+        .filter((f) => sheetDraft[f.label]?.trim())
+        .map((f) => ({ label: f.label, value: sheetDraft[f.label]!.trim() }));
       await onUpdateSoldier(s.name, {
         mispar_ishi: fixedDraft.mispar_ishi,
         tzz_neshek: fixedDraft.tzz_neshek,
         tzz_kavanot_m5: fixedDraft.tzz_kavanot_m5,
-        custom_fields: JSON.stringify(customDraft.filter((f) => f.label.trim())),
+        custom_fields: JSON.stringify(custom_fields),
       });
       setMode("view");
     } finally { setSaving(false); }
@@ -610,24 +629,19 @@ function SoldierEquipCard({ s, onUpdateSoldier }: { s: Soldier; onUpdateSoldier:
               <input value={fixedDraft[key]} onChange={(e) => setFixedDraft((d) => ({ ...d, [key]: e.target.value }))} className={inputCls} placeholder={`הזן ${label}...`} />
             </div>
           ))}
-          {customDraft.length > 0 && (
-            <div className="border-t border-gray-100 pt-3 space-y-3">
-              {customDraft.map((cf, i) => (
-                <div key={i} className="flex gap-2 items-end">
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">כותרת</label>
-                    <input value={cf.label} onChange={(e) => updateField(i, "label", e.target.value)} className={inputCls} placeholder="לדוגמה: אמרל..." />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">ערך</label>
-                    <input value={cf.value} onChange={(e) => updateField(i, "value", e.target.value)} className={inputCls} placeholder="מספר..." />
-                  </div>
-                  <button onClick={() => removeField(i)} className="text-gray-300 hover:text-red-400 font-black text-2xl leading-none pb-3 transition-colors">×</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <button onClick={addField} className="w-full text-[10px] font-black text-[#4b6043] border border-dashed border-[#4b6043]/30 py-2 rounded-2xl active:scale-[0.98] transition-all">+ הוסף שדה</button>
+          <div className="border-t border-gray-100 pt-3 space-y-3">
+            {SHEET_FIELDS.map((f) => (
+              <div key={f.label}>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{f.label}</label>
+                <input
+                  value={sheetDraft[f.label] ?? ""}
+                  onChange={(e) => setSheetDraft((d) => ({ ...d, [f.label]: e.target.value }))}
+                  className={inputCls}
+                  placeholder={f.placeholder}
+                />
+              </div>
+            ))}
+          </div>
           <button onClick={() => void save()} disabled={saving} className="w-full bg-[#4b6043] text-white py-3 rounded-2xl text-xs font-black shadow-lg shadow-[#4b6043]/20 disabled:opacity-50 active:scale-[0.98] transition-all">
             {saving ? "שומר..." : "שמור שינויים"}
           </button>
@@ -636,27 +650,22 @@ function SoldierEquipCard({ s, onUpdateSoldier }: { s: Soldier; onUpdateSoldier:
 
       {mode === "view" && (
         <>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
-            {FIXED_EQUIP.map(({ key, label }) => (
-              <div key={key}>
-                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{label}</div>
-                <div className="text-xs font-black text-[#2d3a2e] mt-0.5 truncate">
-                  {s[key]?.trim() || <span className="text-gray-200 font-medium">—</span>}
-                </div>
+          {(() => {
+            const visibleFixed = FIXED_EQUIP.filter(({ key }) => s[key]?.trim());
+            const allFields = [...visibleFixed.map(({ key, label }) => ({ label, value: s[key] as string })), ...customFields];
+            return allFields.length === 0 ? (
+              <div className="text-center text-gray-300 py-3 text-xs font-medium">אין ציוד רשום</div>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+                {allFields.map(({ label, value }, i) => (
+                  <div key={i}>
+                    <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{label}</div>
+                    <div className="text-xs font-black text-[#2d3a2e] mt-0.5 truncate">{value}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-            {customFields.map((cf, i) => (
-              <div key={i}>
-                <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{cf.label}</div>
-                <div className="text-xs font-black text-[#2d3a2e] mt-0.5 truncate">
-                  {cf.value?.trim() || <span className="text-gray-200 font-medium">—</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-          {customFields.length === 0 && (
-            <button onClick={openEdit} className="mt-3 w-full text-[10px] font-black text-[#4b6043] border border-dashed border-[#4b6043]/30 py-2 rounded-2xl active:scale-[0.98] transition-all">+ הוסף שדה</button>
-          )}
+            );
+          })()}
         </>
       )}
     </div>
